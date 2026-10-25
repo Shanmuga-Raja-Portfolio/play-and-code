@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whisker Warriors 🐱</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐱</text></svg">
+<!--
+  WHISKER WARRIORS — a kid-friendly lane-battle game (cats vs dogs).
+  Part of the free, MIT-licensed "Play & Code" collection (see ../LICENSE).
+  Parent notes:
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * No ads, no links out, no accounts, no purchases, no loot boxes, no energy timers.
+  * All upgrades are deterministic (you always know exactly what you buy).
+  * Optional gentle break reminder every BREAK_EVERY_MIN minutes (toggle in Settings).
+  * The 🛠️ Game Master Lab lets kids tune real game constants and type real (tiny) code.
+  * Tweak difficulty by editing CATS / FOES / STAGES below.
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#7ec8f7;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>🐱 Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#7ec8f7 0%,#bfe9ff 55%,#e2f7cf 100%);font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+  .cat-card{position:relative;flex:0 0 auto;width:88px;border-radius:1rem;background:linear-gradient(180deg,#ffffff,#fef3c7);box-shadow:0 4px 0 rgba(0,0,0,.15);padding:.5rem .25rem .45rem;text-align:center;cursor:pointer;overflow:hidden;border:3px solid #fcd34d;transition:transform .1s,filter .15s;user-select:none}
+  .cat-card:active{transform:scale(.94)}
+  .cat-card.no{filter:grayscale(.75);opacity:.7}
+  .cat-card .cd{position:absolute;left:0;bottom:0;width:100%;background:rgba(30,41,59,.45);pointer-events:none;transition:height .1s linear}
+  .cat-card .kbd{position:absolute;top:3px;left:4px;font-size:10px;background:rgba(0,0,0,.35);color:#fff;border-radius:4px;padding:0 5px;font-weight:700}
+  @keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  .cat-card.deny{animation:shakeX .25s}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  @keyframes pulseSoft{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  .pulse-tag{animation:pulseSoft 1s infinite;display:inline-block}
+  @keyframes starPop{to{transform:scale(1)}}
+  .star-btn{font-size:3rem;display:inline-block;transform:scale(0);line-height:1}
+  .star-on{animation:starPop .45s cubic-bezier(.34,1.56,.64,1) forwards}
+  .star-off{transform:scale(1);opacity:.22;filter:grayscale(1)}
+  @keyframes fall{to{transform:translateY(620px) rotate(360deg)}}
+  .confetti{position:absolute;top:-50px;animation:fall linear forwards;pointer-events:none}
+  @keyframes bannerIn{0%{opacity:0;transform:scale(.6)}12%{opacity:1;transform:scale(1.06)}20%{transform:scale(1)}80%{opacity:1}100%{opacity:0;transform:scale(1)}}
+  .boss-banner{animation:bannerIn 2.6s forwards}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  .lab-slider{width:100%;height:34px;accent-color:#f59e0b;cursor:pointer}
+  .scroll-x::-webkit-scrollbar{height:6px}
+  .scroll-x::-webkit-scrollbar-thumb{background:#f59e0b;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="app" class="font-kid select-none">
+  <div class="min-h-screen" :style="appBg">
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" class="fixed left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none px-4" :class="['menu','battle'].includes(screen)?'top-4':'top-24'">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center">
+    <div class="text-6xl md:text-7xl"><span class="bob">🐱</span><span class="bob" style="animation-delay:.3s">⚔️</span><span class="bob" style="animation-delay:.6s">🐶</span></div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold text-white drop-shadow-[0_3px_0_rgba(0,0,0,.25)]">Whisker Warriors</h1>
+      <p class="text-white font-bold mt-2 text-lg drop-shadow">A paws-itively epic cats vs dogs adventure!</p>
+    </div>
+    <div class="flex flex-col gap-3 w-72">
+      <button class="btn btn-green btn-xl" @click="go('map')">▶ Play!</button>
+      <button class="btn btn-amber btn-xl" @click="openLab('menu')">🛠️ Game Master</button>
+      <button class="btn btn-purple btn-xl" @click="go('college')">🎓 Cat College <span class="bg-white/25 rounded-full px-2 text-sm">🐟 {{coins}}</span></button>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="text-white/90 text-xs font-bold mt-2">🌱 offline · no ads · just fun</div>
+    <div class="text-xs font-bold absolute bottom-3" :class="profile.lab.sky==='night'?'text-white/80':'text-slate-800/80'">🐱 Play &amp; Code · made with ❤️ for young coders · v1.1</div>
+  </div>
+
+  <!-- ============ STAGE SELECT ============ -->
+  <div v-else-if="screen==='map'" class="max-w-4xl mx-auto p-4 md:p-6 flex flex-col gap-5 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">🗺️ Choose a Stage</h1>
+      <span class="panel font-bold ml-auto">🐟 {{coins}}</span>
+    </div>
+    <div v-for="ch in chapterView" :key="ch.name" class="panel !p-4">
+      <h2 class="text-xl font-extrabold text-slate-700 mb-3">Chapter {{ch.num}} — {{ch.emoji}} {{ch.name}}</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button v-for="s in ch.stages" :key="s.idx" @click="startStage(s.idx)" :disabled="s.locked"
+                class="rounded-2xl p-3 text-center transition-transform active:scale-95 border-4"
+                :class="s.locked ? 'bg-slate-200 border-slate-300 opacity-70 cursor-not-allowed'
+                  : s.isNext ? 'bg-amber-100 border-amber-400 shadow-lg hover:-translate-y-0.5'
+                  : 'bg-white border-emerald-300 shadow hover:-translate-y-0.5'">
+          <div class="text-2xl font-black text-slate-700">{{s.idx+1}}</div>
+          <div class="text-xs font-bold text-slate-600 leading-tight h-7 flex items-center justify-center">{{s.locked ? '🔒' : s.name}}</div>
+          <div class="text-sm leading-none my-1">
+            <span v-for="n in 3" :key="n" :class="n <= s.stars ? '' : 'opacity-20 grayscale'">⭐</span>
+          </div>
+          <div v-if="s.isNext && !s.locked" class="text-[10px] font-black text-amber-600 pulse-tag">NEW!</div>
+          <div v-else-if="s.locked" class="text-[10px] font-bold text-slate-400">clear stage {{s.idx}}</div>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BATTLE ============ -->
+  <div v-else-if="screen==='battle'" class="max-w-5xl mx-auto p-2 md:p-4 flex flex-col gap-2 min-h-screen justify-center">
+    <!-- top bar -->
+    <div class="flex items-center gap-2">
+      <button class="btn btn-white !px-3 !py-2.5" @click="togglePause" title="Pause">⏸️</button>
+      <button class="btn btn-white !px-3 !py-2.5" @click="toggleSpeed">{{speed===1?'🐢 1x':'🐇 2x'}}</button>
+      <div class="panel flex-1 flex items-center gap-2 min-w-0">
+        <span class="text-xl">🐟</span>
+        <div class="h-4 flex-1 rounded-full bg-slate-300 overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-amber-300 to-amber-500" :style="{width:fishPct+'%'}"></div>
+        </div>
+        <span class="text-xs font-black tabular-nums whitespace-nowrap">{{fishDisp}} / {{hud.fishCap}}</span>
+      </div>
+      <div class="panel font-bold text-xs whitespace-nowrap">🏰 {{baseHpDisp}}</div>
+      <div class="panel font-bold text-xs hidden md:block whitespace-nowrap">Stage {{stageIdx+1}} · {{stageDef.name}}</div>
+    </div>
+
+    <!-- battlefield -->
+    <div class="relative rounded-2xl overflow-hidden shadow-2xl ring-4 ring-white/60">
+      <canvas ref="cv" width="1000" height="420" class="w-full block bg-sky-200"></canvas>
+
+      <!-- boss banner -->
+      <div v-if="hud.boss" class="absolute inset-x-0 top-[16%] flex justify-center pointer-events-none">
+        <div class="boss-banner bg-black/70 rounded-2xl px-8 py-3 text-center">
+          <div class="text-4xl">{{hud.boss.emoji}}</div>
+          <div class="text-2xl font-black text-red-400 tracking-widest">{{hud.boss.name}}</div>
+          <div class="text-white text-xs font-bold">A BIG boss approaches!</div>
+        </div>
+      </div>
+
+      <!-- pause overlay -->
+      <div v-if="paused && !result && !breakOpen" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+          <div class="text-5xl mb-1">⏸️</div>
+          <h2 class="text-2xl font-extrabold text-slate-700 mb-4">Paused</h2>
+          <div class="flex flex-col gap-2">
+            <button class="btn btn-green" @click="resumeGame">▶ Keep Playing</button>
+            <button class="btn btn-amber" @click="restartBattle">🔁 Restart Stage</button>
+            <button class="btn btn-purple" @click="openLab('pause')">🛠️ Game Master Lab</button>
+            <button class="btn" :class="profile.sound?'btn-blue':'btn-white'" @click="toggleSound">{{profile.sound?'🔊 Sound: ON':'🔇 Sound: OFF'}}</button>
+            <button class="btn btn-red" @click="quitBattle">🗺️ Quit to Map</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- victory overlay -->
+      <div v-if="result==='win'" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
+        <div class="confetti" v-for="(c,i) in confetti" :key="i" :style="{left:c.left+'%',animationDuration:c.dur+'s',animationDelay:c.delay+'s',fontSize:c.size+'px'}">{{c.e}}</div>
+        <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl relative z-10">
+          <div class="text-6xl">{{gameJustBeat?'🏆':'🎉'}}</div>
+          <h2 class="text-3xl font-extrabold text-emerald-600 mt-1">{{gameJustBeat?'GAME COMPLETE!':'PAW-SOME!'}}</h2>
+          <p v-if="gameJustBeat" class="text-sm font-bold text-slate-500">You beat every stage. You = hero! 🐾</p>
+          <div class="flex justify-center gap-2 my-3">
+            <span v-for="n in 3" :key="n" class="star-btn" :class="n<=resultStars?'star-on':'star-off'" :style="n<=resultStars?{animationDelay:(n*0.18)+'s'}:{}">⭐</span>
+          </div>
+          <div class="text-xl font-black text-amber-600 mb-1">+🐟 {{shownCoins}}</div>
+          <div class="flex flex-col gap-2 mt-2">
+            <button v-if="stageIdx < STAGES.length-1" class="btn btn-green" @click="nextStage">Next Stage ▶</button>
+            <div class="flex gap-2">
+              <button class="btn btn-amber flex-1" @click="replayStage">🔁 Replay</button>
+              <button class="btn btn-white flex-1" @click="quitBattle">🗺️ Map</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- defeat overlay -->
+      <div v-if="result==='lose'" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl">
+          <div class="text-6xl">🙀</div>
+          <h2 class="text-3xl font-extrabold text-rose-500 mt-1">Good try!</h2>
+          <p class="text-sm font-bold text-slate-500 my-3">💡 {{tip}}</p>
+          <div class="flex flex-col gap-2">
+            <button class="btn btn-green" @click="replayStage">🔁 Try Again</button>
+            <div class="flex gap-2">
+              <button class="btn btn-purple flex-1" @click="goCollegeFromBattle">🎓 Upgrades</button>
+              <button class="btn btn-white flex-1" @click="quitBattle">🗺️ Map</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- break reminder -->
+      <div v-if="breakOpen" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl">
+          <div class="text-6xl">🌴💧</div>
+          <h2 class="text-2xl font-extrabold text-sky-600 mt-2">Water break time, hero!</h2>
+          <p class="text-sm font-bold text-slate-500 my-3">Your eyes and body will thank you. The dogs will wait, promise! 🐾</p>
+          <div class="flex flex-col gap-2">
+            <button class="btn btn-sky-500 bg-sky-400" style="background:linear-gradient(180deg,#38bdf8,#0ea5e9)" @click="breakDone">✅ Take a break</button>
+            <button class="btn btn-white" @click="breakSnooze">⏳ 5 more minutes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- unit cards -->
+    <div>
+      <div class="flex gap-2 overflow-x-auto scroll-x pb-1">
+        <div v-for="(c,i) in availableCats" :key="c.id" class="cat-card" :class="{'no':!canDeploy(c.id),'deny':hud.deny===c.id}" @click="deployCat(c.id)">
+          <span class="kbd">{{i+1}}</span>
+          <div class="text-3xl leading-none mt-1">{{c.emoji}}</div>
+          <div class="text-[11px] font-black text-slate-700 leading-tight mt-0.5">{{c.name}}</div>
+          <div class="text-xs font-black text-amber-600">🐟{{c.cost}}</div>
+          <div class="cd" :style="{height:cdPct(c.id)+'%'}"></div>
+        </div>
+      </div>
+      <div class="text-center text-[11px] font-bold text-white/90 mt-1 drop-shadow">Tap a card (or press 1-{{availableCats.length}}) to send a hero! Press P to pause.</div>
+    </div>
+  </div>
+
+  <!-- ============ CAT COLLEGE (upgrades) ============ -->
+  <div v-else-if="screen==='college'" class="max-w-3xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go(profile.cleared>0?'map':'menu')">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white drop-shadow">🎓 Cat College</h1>
+      <span class="panel font-bold ml-auto">🐟 {{coins}}</span>
+    </div>
+    <p class="text-white font-bold text-sm text-center -mt-2 drop-shadow">Spend coins to power up your team — every upgrade is a sure thing!</p>
+
+    <!-- wallet & base -->
+    <div class="grid md:grid-cols-2 gap-3">
+      <div class="panel !p-4 flex items-center gap-3">
+        <div class="text-4xl">👛</div>
+        <div class="flex-1">
+          <div class="font-black text-slate-700">Fish Wallet <span class="text-xs bg-sky-100 text-sky-700 rounded-full px-2">Lv {{profile.walletLv}}</span></div>
+          <div class="text-xs font-bold text-slate-500">+🐟{{walletView.rate}}/sec, cap {{walletView.cap}} → +🐟{{walletView.rateN}}/sec, cap {{walletView.capN}}</div>
+        </div>
+        <button class="btn btn-amber !px-3 !py-2 text-sm" :disabled="walletView.max || coins<walletView.cost" @click="buyWalletUp">{{walletView.max?'MAX':'🐟'+walletView.cost}}</button>
+      </div>
+      <div class="panel !p-4 flex items-center gap-3">
+        <div class="text-4xl">🏰</div>
+        <div class="flex-1">
+          <div class="font-black text-slate-700">Cozy Cat Tower <span class="text-xs bg-emerald-100 text-emerald-700 rounded-full px-2">Lv {{profile.baseLv}}</span></div>
+          <div class="text-xs font-bold text-slate-500">❤️ {{baseView.hp}} → {{baseView.hpN}}</div>
+        </div>
+        <button class="btn btn-amber !px-3 !py-2 text-sm" :disabled="baseView.max || coins<baseView.cost" @click="buyBaseUp">{{baseView.max?'MAX':'🐟'+baseView.cost}}</button>
+      </div>
+    </div>
+
+    <!-- cat rows -->
+    <div class="flex flex-col gap-2">
+      <div v-for="r in catRows" :key="r.c.id" class="panel !p-3 flex items-center gap-3" :class="r.locked?'opacity-60':''">
+        <div class="text-3xl w-10 text-center">{{r.locked?'🔒':r.c.emoji}}</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-black text-slate-700 text-sm">
+            {{r.c.name}}
+            <span v-if="!r.locked" class="text-xs bg-amber-100 text-amber-700 rounded-full px-2">Lv {{r.lv}}</span>
+          </div>
+          <div class="text-[11px] font-bold text-slate-500 leading-tight">
+            <template v-if="r.locked">Clear Stage {{r.c.unlock}} to unlock!</template>
+            <template v-else-if="r.max">❤️{{r.hp}} · ⚔️{{r.dmg}} — fully maxed, wow!</template>
+            <template v-else>❤️{{r.hp}}<span class="text-emerald-600">→{{r.hpN}}</span> · ⚔️{{r.dmg}}<span class="text-emerald-600">→{{r.dmgN}}</span></template>
+          </div>
+        </div>
+        <button v-if="!r.locked" class="btn btn-amber !px-3 !py-2 text-sm whitespace-nowrap" :disabled="r.max || coins<r.cost" @click="buyCatUp(r.c.id)">{{r.max?'MAX':'Upgrade 🐟'+r.cost}}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">❓ How to Play</h1>
+    </div>
+    <div class="panel !p-5 flex flex-col gap-4 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="text-3xl">🐟</span><p>Fish power fills up all by itself — it's your deploy money. A bigger Wallet means more fish, faster!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🐱</span><p>Tap a cat card (or press keys 1-7) to send that hero marching to the right. Each cat costs fish and needs a short cat-nap (cooldown) before going again.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">⚔️</span><p>Heroes fight any dogs they meet. Archers and mages shoot from far away; guards are super tough walls; Big Tabby just stomps!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🏰</span><p>Guard your Cat Tower on the left. Smash the Dog Base on the right to win the stage!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">⭐</span><p>Win stars (keep your tower healthy for 3⭐!) and coins. Replaying stages you already beat still earns coins.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🎓</span><p>Spend coins at Cat College to level up heroes, your wallet and your tower. Every upgrade always works — no surprises!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">💡</span><p>Stuck on a stage? Bring more Pawsome Guards to block, and level up at the College!</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="max-w-md mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <button class="btn btn-white !justify-between" @click="toggleBreaks"><span>⏰ Break reminders</span><span class="font-black" :class="profile.breaks?'text-emerald-600':'text-slate-400'">{{profile.breaks?'ON':'OFF'}}</span></button>
+      <p class="text-xs font-bold text-white text-center drop-shadow">(a friendly water-break pop-up after {{BREAK_EVERY_MIN}} minutes of play)</p>
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases all stars, coins and upgrades. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center">
+          <span class="text-xs font-black text-rose-600">Really erase it all?</span>
+          <button class="btn btn-red !py-1.5 !px-3 text-xs" @click="doReset">Yes</button>
+          <button class="btn btn-white !py-1.5 !px-3 text-xs" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">Battles played: {{profile.plays}} · v1.1</div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="max-w-3xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white drop-shadow">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="text-white font-bold text-sm text-center -mt-2 drop-shadow">You are the boss of this game! Move a slider, then go play and feel the difference.</p>
+
+    <!-- sliders + sky picker -->
+    <div class="panel !p-4 flex flex-col gap-4">
+      <div v-for="d in LAB_DEFS" :key="d.key">
+        <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+          <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+          <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">×{{profile.lab[d.key]}}</span>
+        </div>
+        <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+               :value="profile.lab[d.key]" @input="setLab(d.key,$event)">
+        <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>×{{d.min}}</span><span class="text-slate-500">normal = ×{{d.def}}</span><span>×{{d.max}}</span></div>
+      </div>
+      <div>
+        <div class="font-black text-slate-700 text-sm mb-2">🌈 Sky theme <span class="font-bold text-slate-400 text-xs">· changes the whole sky, right now!</span></div>
+        <div class="flex gap-2">
+          <button v-for="s in LAB_SKIES" :key="s.key" class="btn flex-1 !py-2 text-sm"
+                  :class="profile.lab.sky===s.key?'btn-purple':'btn-white'" @click="pickSky(s.key)">{{s.icon}} {{s.name}}</button>
+        </div>
+      </div>
+      <button class="btn btn-red text-sm self-start" @click="resetLab">↩️ Reset to normal</button>
+    </div>
+
+    <!-- lesson cards -->
+    <div class="grid md:grid-cols-3 gap-3">
+      <div class="panel !p-4">
+        <div class="text-2xl">📦</div>
+        <div class="font-black text-slate-700 text-sm">Variables</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">A variable is a named number. <b>fishRate</b> decides how fast your fish pile grows — slide it and watch the 🐟 bar fill up!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔢</div>
+        <div class="font-black text-slate-700 text-sm">Numbers &amp; math</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">Every hit does damage × <b>heroDmg</b>. Set it to 2 and your heroes hit twice as hard. Math is a superpower!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔁</div>
+        <div class="font-black text-slate-700 text-sm">Loops</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">The game loop runs about 60 times a second. Each run moves every hero a tiny step using <b>heroSpeed</b> — lots of tiny steps = smooth walking!</p>
+      </div>
+    </div>
+
+    <!-- mini code box -->
+    <div class="panel !p-4 flex flex-col gap-2">
+      <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+      <p class="text-xs font-bold text-slate-500">Try <b>fishRate = 2</b>, or <b>heroDmg = 1 + 1</b>, or even <b>foeHp = heroDmg * 2</b> — then press Enter.</p>
+      <div class="flex gap-2">
+        <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+               class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+               placeholder="fishRate = 2">
+        <button class="btn btn-green !py-2 text-sm" @click="runLabCode">Run ▶</button>
+      </div>
+      <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+      <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   WHISKER WARRIORS — game data, engine and app
+   (original characters & art — inspired by classic lane battles)
+   ============================================================ */
+
+// --- parental knobs -------------------------------------------------------
+const BREAK_EVERY_MIN = 25;   // gentle break reminder cadence (minutes of battle time)
+const BREAK_SNOOZE_MIN = 10;  // "5 more minutes" actually gives this many, shhh :)
+const SAVE_KEY = 'whiskerWarriorsSave1';
+const MAX_CAT_LV = 10, MAX_WALLET_LV = 5, MAX_BASE_LV = 5;
+
+// --- Game Master Lab -------------------------------------------------------
+// Sliders bound to real gameplay constants. Values live in profile.lab and
+// multiply the base stats (1 = normal).
+const LAB_DEFS = [
+  {key:'fishRate',  name:'Fish Speed',    icon:'🐟', min:0.5, max:3, step:0.1, def:1, hint:'how fast your fish pile refills'},
+  {key:'heroDmg',   name:'Hero Power',    icon:'⚔️', min:0.5, max:3, step:0.1, def:1, hint:'how hard your heroes hit'},
+  {key:'heroSpeed', name:'Hero Speed',    icon:'💨', min:0.5, max:2, step:0.1, def:1, hint:'how fast your heroes walk'},
+  {key:'foeHp',     name:'Dog Toughness', icon:'🐶', min:0.5, max:3, step:0.1, def:1, hint:'how much health the dogs have'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_SKIES = [
+  {key:'day',    icon:'🌤️', name:'Sunny'},
+  {key:'sunset', icon:'🌇', name:'Sunset'},
+  {key:'night',  icon:'🌌', name:'Starry'}
+];
+function defaultLab(){
+  const lab={ sky:'day' };
+  for(const d of LAB_DEFS) lab[d.key]=d.def;
+  return lab;
+}
+
+// --- heroes ----------------------------------------------------------------
+const CATS = [
+  {id:0,name:'Whisker',       emoji:'🐱',cost:50, cd:2.0,hp:120,dmg:15,spd:55, rng:34, atk:1.2, ranged:false,unlock:0,desc:'A brave everyday kitten. Cheap and cheerful!'},
+  {id:1,name:'Pawsome Guard', emoji:'🛡️',cost:130,cd:4.0,hp:620,dmg:9, spd:32, rng:32, atk:0.8, ranged:false,unlock:0,desc:'A purr-fect wall. So much fluff, so much health!'},
+  {id:2,name:'Dash',          emoji:'😼',cost:90, cd:3.0,hp:95, dmg:11,spd:115,rng:30, atk:2.2, ranged:false,unlock:1,desc:'Zoom zoom! Super speedy scratcher.'},
+  {id:3,name:'Fishbone Archer',emoji:'🏹',cost:160,cd:5.0,hp:115,dmg:24,spd:46,rng:225,atk:0.9, ranged:true, unlock:2,desc:'Shoots fishbones from far away.'},
+  {id:4,name:'Sparkle Mage',  emoji:'✨',cost:260,cd:7.0,hp:130,dmg:48,spd:40,rng:260,atk:0.55,ranged:true, unlock:4,desc:'Big sparkle booms. Slow but mighty!'},
+  {id:5,name:'Big Tabby',     emoji:'🐯',cost:420,cd:9.0,hp:1500,dmg:65,spd:34,rng:36,atk:0.9, ranged:false,unlock:6,desc:'A GIANT cat. Stomps everything.'},
+  {id:6,name:'Rocket Cat',    emoji:'🚀',cost:650,cd:14, hp:210,dmg:230,spd:46,rng:250,atk:0.5, ranged:true, unlock:9,desc:'Launches mega rockets from super far.'}
+];
+
+// --- foes -------------------------------------------------------------------
+const FOES = {
+  grunt:  {name:'Puppy Grunt',  emoji:'🐶',hp:110,dmg:9, spd:42, rng:30, atk:1.0, ranged:false,bounty:16},
+  runner: {name:'Zoom Pup',    emoji:'🐕',hp:70, dmg:7, spd:100,rng:28, atk:1.8, ranged:false,bounty:14},
+  thrower:{name:'Bone Thrower',emoji:'🦴',hp:105,dmg:13,spd:30, rng:200,atk:0.8, ranged:true, bounty:24},
+  guard:  {name:'Guard Dog',   emoji:'🐕',hp:520,dmg:17,spd:26, rng:32, atk:0.7, ranged:false,bounty:42,big:true},
+  robo:   {name:'Robo-Pup',    emoji:'🤖',hp:170,dmg:13,spd:65, rng:30, atk:1.1, ranged:false,bounty:32},
+  boss1:  {name:'BIG WOOF',    emoji:'🐺',hp:2800,dmg:42,spd:30,rng:46,atk:0.6, ranged:false,bounty:260,boss:true},
+  boss2:  {name:'MEGA DOG 3000',emoji:'🤖',hp:5200,dmg:60,spd:26,rng:50,atk:0.55,ranged:false,bounty:420,boss:true},
+  boss3:  {name:'STAR HOUND',  emoji:'👾',hp:8000,dmg:85,spd:26,rng:60,atk:0.5, ranged:false,bounty:600,boss:true}
+};
+
+// --- stages (12 across 3 chapters) ------------------------------------------
+const STAGES = [
+  {name:'Sofa Slopes',      ch:0,baseHp:600, reward:250,spawns:[{e:'grunt',start:8, every:11,count:1/0}]},
+  {name:'Cushion Canyon',   ch:0,baseHp:850, reward:300,spawns:[{e:'grunt',start:6,every:8,count:1/0},{e:'runner',start:32,every:13,count:1/0}]},
+  {name:'The Great Hall',   ch:0,baseHp:1100,reward:350,spawns:[{e:'grunt',start:5,every:7,count:1/0},{e:'thrower',start:26,every:15,count:1/0}]},
+  {name:'BIG WOOF Alert!',  ch:0,baseHp:1300,reward:500,spawns:[{e:'grunt',start:6,every:9,count:1/0},{e:'boss1',start:42,every:1,count:1}]},
+  {name:'Backyard Gate',    ch:1,baseHp:1700,reward:400,spawns:[{e:'grunt',start:5,every:6,count:1/0},{e:'runner',start:18,every:9,count:1/0},{e:'thrower',start:36,every:14,count:1/0}]},
+  {name:'Fence Line',       ch:1,baseHp:2100,reward:450,spawns:[{e:'grunt',start:4,every:5,count:1/0},{e:'runner',start:16,every:8,count:1/0},{e:'guard',start:35,every:18,count:1/0}]},
+  {name:'Doghouse Door',    ch:1,baseHp:2500,reward:500,spawns:[{e:'grunt',start:4,every:5,count:1/0},{e:'robo',start:14,every:10,count:1/0},{e:'thrower',start:30,every:13,count:1/0}]},
+  {name:'MEGA DOG 3000!',   ch:1,baseHp:3200,reward:700,spawns:[{e:'grunt',start:4,every:6,count:1/0},{e:'robo',start:14,every:9,count:1/0},{e:'guard',start:40,every:20,count:1/0},{e:'boss2',start:55,every:1,count:1}]},
+  {name:'Launch Pad',       ch:2,baseHp:3000,reward:550,spawns:[{e:'robo',start:8,every:8,count:1/0},{e:'guard',start:25,every:15,count:1/0},{e:'thrower',start:15,every:11,count:1/0}]},
+  {name:'Stardust Field',   ch:2,baseHp:3600,reward:600,spawns:[{e:'robo',start:6,every:7,count:1/0},{e:'runner',start:12,every:6,count:1/0},{e:'guard',start:28,every:13,count:1/0}]},
+  {name:'Crater Crossing',  ch:2,baseHp:3800,reward:650,spawns:[{e:'robo',start:6,every:7,count:1/0},{e:'guard',start:24,every:14,count:1/0},{e:'thrower',start:14,every:11,count:1/0},{e:'runner',start:40,every:10,count:1/0}]},
+  {name:'STAR HOUND!',      ch:2,baseHp:4600,reward:1000,spawns:[{e:'robo',start:6,every:8,count:1/0},{e:'guard',start:26,every:14,count:1/0},{e:'boss3',start:55,every:1,count:1}]}
+];
+const CHAPTERS = [
+  {name:'The Living Room',emoji:'🛋️'},
+  {name:'The Backyard',   emoji:'🌳'},
+  {name:'The Moon',       emoji:'🌙'}
+];
+
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+const KID_FONT   = '"Comic Sans MS","Chalkboard SE","Segoe UI",sans-serif';
+
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function rr(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function makeDecor(ch){
+  const d=[];
+  if(ch===0){
+    ['🧶','🪴','🛋️','🧸','📚'].forEach((e,i)=>d.push({e,x:150+((i*181)%700),y:336,s:22+((i*7)%12)}));
+  } else if(ch===1){
+    d.push({e:'🌳',x:210,y:340,s:44},{e:'🌳',x:770,y:338,s:38},{e:'🪣',x:420,y:342,s:20});
+    for(let i=0;i<12;i++) d.push({e:['🌷','🌼','🌻'][i%3],x:70+((i*167)%820),y:352,s:15});
+  } else {
+    d.push({e:'🪨',x:190,y:342,s:26},{e:'🪨',x:520,y:346,s:20},{e:'🪨',x:800,y:340,s:28},{e:'🚩',x:350,y:344,s:22});
+  }
+  return d;
+}
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click':  this.tone(500,650,0.06,'sine',0.07); break;
+      case 'deploy': this.tone(520,880,0.12,'triangle',0.13); break;
+      case 'hit':    this.tone(220,140,0.05,'square',0.045); break;
+      case 'shoot':  this.tone(900,1400,0.07,'sine',0.05); break;
+      case 'kill':   this.tone(320,90,0.14,'triangle',0.11); break;
+      case 'deny':   this.tone(180,120,0.15,'sawtooth',0.07); break;
+      case 'buy':    this.tone(700,1050,0.1,'triangle',0.12); this.tone(1050,1400,0.1,'triangle',0.1,0.09); break;
+      case 'victory':[523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.16,'triangle',0.13,i*0.13)); break;
+      case 'defeat': [392,330,262].forEach((f,i)=>this.tone(f,f*0.98,0.2,'sine',0.11,i*0.16)); break;
+      case 'boss':   [110,110,98].forEach((f,i)=>this.tone(f,f,0.25,'sawtooth',0.09,i*0.28)); break;
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============================ BATTLE ENGINE ============================ */
+class Battle {
+  constructor(opts){
+    this.stageIdx = opts.stageIdx;
+    this.stage    = STAGES[opts.stageIdx];
+    this.profile  = opts.profile;
+    this.hud      = opts.hud;
+    this.sfx      = opts.sfx;
+    this.onEnd    = opts.onEnd;
+    this.lab      = opts.lab || defaultLab();
+    this.ctx      = null;
+
+    this.w=1000; this.h=420; this.groundY=340;
+    this.baseHpMax = 1200 + 350*this.profile.baseLv;
+    this.pBase = {x:60,  y:this.groundY-70, hp:this.baseHpMax,       max:this.baseHpMax,       isBase:true, side:1,  flash:0};
+    this.eBase = {x:940, y:this.groundY-70, hp:this.stage.baseHp,    max:this.stage.baseHp,    isBase:true, side:-1, flash:0};
+
+    this.cats=[]; this.foes=[]; this.shots=[]; this.fx=[]; this.floats=[];
+    this.fish=140;
+    this.fishCap  = 500 + 150*this.profile.walletLv;
+    this.fishRate = 18  + 5  *this.profile.walletLv;
+    this.catCd = CATS.map(()=>0);
+    this.time=0; this.speed=1; this.over=null; this.paused=false; this.shake=0;
+    this.lastHitSfx=0; this.glintT=2.5;
+    this.spawners = this.stage.spawns.map(s=>({def:s, next:s.start, done:0}));
+    this.decor = makeDecor(this.stage.ch);
+    this.bgStars = [];
+    if(this.stage.ch===2){ for(let i=0;i<90;i++) this.bgStars.push({x:Math.random()*1000,y:Math.random()*250,r:Math.random()*1.6+0.5,ph:Math.random()*7}); }
+    this._frame = this._frame.bind(this);
+    this.running=false; this._last=0;
+  }
+  mul(id){ return 1 + 0.13*((this.profile.catLv[id]||1)-1); }
+
+  attach(cv){
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width  = this.w*dpr;
+    cv.height = this.h*dpr;
+    this.ctx = cv.getContext('2d');
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  start(){ this.running=true; this._last=performance.now(); requestAnimationFrame(this._frame); }
+  stop(){ this.running=false; }
+
+  deploy(id){
+    if(this.over||this.paused) return false;
+    const d=CATS[id];
+    if(this.catCd[id]>0 || this.fish<d.cost){
+      this.hud.deny=id;
+      clearTimeout(this._dt); this._dt=setTimeout(()=>{ this.hud.deny=-1; },260);
+      this.sfx.play('deny');
+      return false;
+    }
+    this.fish-=d.cost; this.catCd[id]=d.cd;
+    const m=this.mul(id);
+    const lm=this.lab.heroDmg||1;
+    this.cats.push({
+      side:1, cat:true, id, name:d.name, emoji:d.emoji,
+      x:120+rnd(-6,6), y:292+((Math.random()*4)|0)*16,
+      r:(id===5?25:19), hp:d.hp*m, max:d.hp*m, dmg:d.dmg*m*lm,
+      spd:d.spd*(this.lab.heroSpeed||1), rng:d.rng, atk:d.atk, ranged:!!d.ranged,
+      atkT:0.3, swing:0, moving:true, seed:Math.random()*10, flash:0
+    });
+    this.sfx.play('deploy');
+    return true;
+  }
+
+  spawnFoe(key){
+    const d=FOES[key];
+    const mH=1+this.stageIdx*0.09, mD=1+this.stageIdx*0.05;
+    const hp=Math.round(d.hp*mH*(this.lab.foeHp||1));
+    this.foes.push({
+      side:-1, name:d.name, emoji:d.emoji,
+      x:908+rnd(-5,5), y:292+((Math.random()*4)|0)*16,
+      r:d.boss?34:(d.big?24:19),
+      hp, max:hp, dmg:d.dmg*mD,
+      spd:d.spd, rng:d.rng, atk:d.atk, ranged:!!d.ranged,
+      bounty:d.bounty, boss:!!d.boss,
+      atkT:0.5, swing:0, moving:true, seed:Math.random()*10, flash:0
+    });
+    if(d.boss){
+      this.hud.boss={name:d.name,emoji:d.emoji};
+      this.shake=6;
+      this.sfx.play('boss');
+      clearTimeout(this._bt);
+      this._bt=setTimeout(()=>{ this.hud.boss=null; },2600);
+    }
+  }
+
+  update(dt){
+    if(this.over) return;
+    this.time+=dt;
+    this.fish=Math.min(this.fishCap,this.fish+this.fishRate*(this.lab.fishRate||1)*dt);
+    for(let i=0;i<this.catCd.length;i++) if(this.catCd[i]>0) this.catCd[i]=Math.max(0,this.catCd[i]-dt);
+    for(const s of this.spawners){
+      if(s.done>=s.def.count) continue;
+      if(this.time>=s.next){ this.spawnFoe(s.def.e); s.done++; s.next=this.time+s.def.every; }
+    }
+    for(const c of this.cats)    this.stepEntity(c,dt,this.foes,this.eBase, 1);
+    for(const f of this.foes)    this.stepEntity(f,dt,this.cats,this.pBase,-1);
+    this.pBase.flash=Math.max(0,this.pBase.flash-dt);
+    this.eBase.flash=Math.max(0,this.eBase.flash-dt);
+
+    // projectiles
+    for(const s of this.shots){
+      const t=s.target;
+      let tx=s.lx!=null?s.lx:s.x, ty=s.ly!=null?s.ly:this.groundY-40;
+      if(t && t.hp>0){ tx=t.x; ty=t.y||this.groundY-40; s.lx=tx; s.ly=ty; }
+      const dx=tx-s.x, dy=ty-s.y, dist=Math.hypot(dx,dy), step=s.spd*dt;
+      if(dist<=step+6){
+        s.dead=true;
+        if(t && t.hp>0){ this.hit(t,s.dmg,s.side); this.fx.push({type:'boom',x:tx,y:ty,t:0.25}); }
+      } else { s.x+=dx/dist*step; s.y+=dy/dist*step; }
+    }
+    this.shots=this.shots.filter(s=>!s.dead && s.x>-60 && s.x<1060);
+
+    // deaths
+    this.cats=this.cats.filter(c=>{ if(c.hp<=0){ this.poof(c); return false; } return true; });
+    this.foes=this.foes.filter(f=>{
+      if(f.hp<=0){
+        this.poof(f);
+        const b=Math.round(f.bounty*(1+this.stageIdx*0.03));
+        this.fish=Math.min(this.fishCap,this.fish+b);
+        this.floats.push({x:f.x,y:(f.y||this.groundY-24)-40,txt:'+'+b+'🐟',c:'#fde047',t:0.9});
+        this.sfx.play('kill');
+        return false;
+      }
+      return true;
+    });
+
+    // periodic sparkle wink on a random unit (emoji units can't blink — this is their twinkle)
+    this.glintT-=dt;
+    if(this.glintT<=0){
+      this.glintT=rnd(2.5,5);
+      const all=this.cats.concat(this.foes);
+      if(all.length){
+        const e=all[(Math.random()*all.length)|0];
+        this.fx.push({type:'glint',x:e.x+rnd(-8,8),y:(e.y||this.groundY-24)-e.r-6,t:0.6});
+      }
+    }
+
+    // fx & floats
+    for(const f of this.fx){ f.t-=dt; f.y=(f.y||0)-(f.type==='poof'?26:f.type==='glint'?18:0)*dt; }
+    this.fx=this.fx.filter(f=>f.t>0);
+    for(const f of this.floats){ f.t-=dt; f.y-=45*dt; }
+    this.floats=this.floats.filter(f=>f.t>0);
+
+    if(this.eBase.hp<=0) this.finish('win');
+    else if(this.pBase.hp<=0) this.finish('lose');
+  }
+
+  stepEntity(e,dt,oppList,oppBase,dir){
+    if(e.hp<=0) return;
+    e.flash=Math.max(0,e.flash-dt);
+    e.swing=Math.max(0,e.swing-dt);
+    e.atkT-=dt;
+    let best=null,bd=1e9;
+    for(const o of oppList){ if(o.hp<=0) continue; const d=Math.abs(o.x-e.x); if(d<bd){bd=d;best=o;} }
+    const db=Math.abs(oppBase.x-e.x);
+    if(db<bd){bd=db;best=oppBase;}
+    e.target=best;
+    const reach=e.rng+(best&&best.isBase?25:0);
+    if(best && bd<=reach){
+      e.moving=false;
+      if(e.atkT<=0){
+        e.atkT=1/e.atk; e.swing=0.22;
+        if(e.ranged){
+          this.shots.push({x:e.x,y:e.y,target:best,dmg:e.dmg,side:e.side,spd:420,emoji:e.side>0?'🐟':'🦴'});
+          this.sfx.play('shoot');
+        } else this.hit(best,e.dmg,e.side);
+      }
+    } else {
+      e.moving=true;
+      e.x+=dir*e.spd*dt;
+      if(dir>0) e.x=Math.min(e.x,912); else e.x=Math.max(e.x,88);
+    }
+  }
+
+  hit(t,dmg,side){
+    if(t.hp<=0) return;
+    t.hp-=dmg;
+    t.flash=0.12;
+    if(t.isBase){ t.flash=0.22; this.shake=Math.max(this.shake,t===this.eBase?2.5:4); }
+    this.floats.push({x:t.x+rnd(-8,8),y:(t.y||this.groundY-40)-30,txt:''+Math.round(dmg),c:side>0?'#ffffff':'#fecaca',t:0.7});
+    const now=performance.now();
+    if(now-this.lastHitSfx>80){ this.lastHitSfx=now; this.sfx.play('hit'); }
+  }
+  poof(e){
+    this.fx.push({type:'poof',x:e.x,y:e.y||this.groundY-24,t:0.5});
+    this.floats.push({x:e.x,y:(e.y||this.groundY-24)-36,txt:'💫',c:'#fff',t:0.6});
+  }
+  finish(res){
+    if(this.over) return;
+    this.over=res;
+    this.pBase.flash=0; this.eBase.flash=0; this.shake=0; // leave the final frame clean
+    this.sfx.play(res==='win'?'victory':'defeat');
+    this.onEnd(res,Math.max(0,this.pBase.hp)/this.pBase.max);
+    this.stop();
+  }
+
+  syncHud(){
+    const h=this.hud;
+    h.fish=this.fish; h.fishCap=this.fishCap;
+    h.baseHp=Math.max(0,this.pBase.hp); h.baseMax=this.pBase.max;
+    h.eBaseHp=Math.max(0,this.eBase.hp); h.eBaseMax=this.eBase.max;
+    h.cds=this.catCd.slice(); h.time=this.time;
+  }
+  _frame(ts){
+    if(!this.running) return;
+    const dt=Math.min(0.05,Math.max(0,(ts-this._last)/1000)); this._last=ts;
+    if(!this.paused && !this.over){ for(let i=0;i<this.speed;i++) this.update(dt); }
+    this.syncHud();
+    this.render();
+    requestAnimationFrame(this._frame);
+  }
+
+  /* ---------------- rendering ---------------- */
+  render(){
+    const ctx=this.ctx; if(!ctx) return;
+    const g=this.groundY;
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(this.shake>0){ ctx.translate(rnd(-1,1)*this.shake*2.2, rnd(-1,1)*this.shake*2.2); this.shake=Math.max(0,this.shake-0.5); }
+    this.drawBg(ctx);
+    ctx.font='24px '+EMOJI_FONT;
+    for(const d of this.decor){ ctx.font=(d.s||24)+'px '+EMOJI_FONT; ctx.fillText(d.e,d.x,d.y); }
+    const ents=[...this.cats,...this.foes].sort((a,b)=>(a.y||0)-(b.y||0));
+    for(const e of ents) this.drawEnt(ctx,e);
+    this.drawBase(ctx,this.pBase,true);
+    this.drawBase(ctx,this.eBase,false);
+    ctx.font='18px '+EMOJI_FONT;
+    for(const s of this.shots) ctx.fillText(s.emoji,s.x,s.y);
+    for(const f of this.fx){
+      const k=f.t/(f.type==='poof'?0.5:f.type==='glint'?0.6:0.25);
+      if(f.type==='glint'){
+        ctx.globalAlpha=k;
+        ctx.font=(13+(1-k)*10)+'px '+EMOJI_FONT;
+        ctx.fillText('✨',f.x,f.y);
+      } else if(f.type==='poof'){
+        ctx.globalAlpha=k;
+        ctx.strokeStyle='#fde68a'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(f.x,f.y,(1-k)*26+8,0,7); ctx.stroke();
+        ctx.font='20px '+EMOJI_FONT; ctx.fillText('💫',f.x,f.y-(1-k)*18);
+      } else {
+        ctx.globalAlpha=k;
+        ctx.fillStyle='#fbbf24';
+        ctx.beginPath(); ctx.arc(f.x,f.y,(1-k)*10+3,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }
+    for(const f of this.floats){
+      ctx.globalAlpha=Math.max(0,Math.min(1,f.t/0.7));
+      ctx.font='bold 15px '+KID_FONT;
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.65)';
+      ctx.strokeText(f.txt,f.x,f.y);
+      ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y);
+      ctx.globalAlpha=1;
+    }
+    ctx.restore();
+  }
+  drawBg(ctx){
+    const g=this.groundY,ch=this.stage.ch,W=this.w,H=this.h;
+    if(ch===0){
+      ctx.fillStyle='#fff2d9'; ctx.fillRect(0,0,W,252);
+      ctx.fillStyle='#f7e2b5'; ctx.fillRect(0,240,W,14);
+      ctx.fillStyle='#e7b373'; ctx.fillRect(0,254,W,H-254);
+      ctx.strokeStyle='rgba(140,90,40,.25)'; ctx.lineWidth=2;
+      for(let x=0;x<W;x+=88){ ctx.beginPath(); ctx.moveTo(x,258); ctx.lineTo(x-14,H); ctx.stroke(); }
+      ctx.globalAlpha=.45; ctx.fillStyle='#f87171';
+      ctx.beginPath(); ctx.ellipse(500,352,260,34,0,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+    } else if(ch===1){
+      ctx.fillStyle='#aee4ff'; ctx.fillRect(0,0,W,252);
+      ctx.fillStyle='#fde047'; ctx.beginPath(); ctx.arc(868,58,34,0,7); ctx.fill();
+      ctx.globalAlpha=.35; ctx.fillStyle='#fef08a'; ctx.beginPath(); ctx.arc(868,58,48,0,7); ctx.fill();
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#8fd35d'; ctx.fillRect(0,252,W,H-252);
+      ctx.strokeStyle='rgba(52,120,40,.35)'; ctx.lineWidth=2;
+      for(let x=20;x<W;x+=34){ ctx.beginPath(); ctx.moveTo(x,262); ctx.lineTo(x-6,250); ctx.stroke(); }
+    } else {
+      ctx.fillStyle='#172554'; ctx.fillRect(0,0,W,252);
+      for(const s of this.bgStars){
+        ctx.globalAlpha=.35+.55*Math.abs(Math.sin(this.time*1.6+s.ph));
+        ctx.fillStyle='#fef9c3';
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      ctx.fillStyle='#cbd5e1'; ctx.fillRect(0,252,W,H-252);
+      ctx.fillStyle='#94a3b8';
+      [[140,290,16],[420,320,10],[640,285,13],[860,315,9],[300,355,12],[760,360,14]].forEach(c=>{ ctx.beginPath(); ctx.ellipse(c[0],c[1],c[2],c[2]*0.45,0,0,7); ctx.fill(); });
+    }
+    if(ch!==2){
+      const sky=(this.lab&&this.lab.sky)||'day';
+      if(sky==='sunset'){
+        ctx.fillStyle='rgba(255,138,60,.28)'; ctx.fillRect(0,0,W,252);
+        ctx.fillStyle='#fb923c'; ctx.beginPath(); ctx.arc(868,64,34,0,7); ctx.fill();
+      } else if(sky==='night'){
+        ctx.fillStyle='rgba(30,27,75,.55)'; ctx.fillRect(0,0,W,252);
+        ctx.font='26px '+EMOJI_FONT; ctx.fillText('🌙',862,58);
+        ctx.font='14px '+EMOJI_FONT;
+        [[120,50],[300,92],[520,42],[700,102]].forEach(p=>ctx.fillText('✨',p[0],p[1]));
+      }
+    }
+    ctx.strokeStyle='rgba(0,0,0,.12)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,252); ctx.lineTo(this.w,252); ctx.stroke();
+  }
+  drawEnt(ctx,e){
+    const g=this.groundY;
+    const y=e.y||g-24;
+    const bob=e.moving?Math.sin(this.time*11+e.seed)*3:0;
+    const dir=e.side;
+    const lunge=e.swing>0?dir*(e.swing/0.22)*9:0;
+    const ex=e.x+lunge, ey=y+bob;
+    ctx.fillStyle='rgba(0,0,0,.16)';
+    ctx.beginPath(); ctx.ellipse(e.x,g+8,e.r*0.9,5.5,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex,ey,e.r,0,7);
+    ctx.fillStyle=e.side>0?'rgba(255,255,255,.9)':'rgba(254,202,202,.92)';
+    ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle=e.side>0?'#f59e0b':'#ef4444'; ctx.stroke();
+    ctx.font=(e.r*1.5)+'px '+EMOJI_FONT;
+    ctx.fillText(e.emoji,ex,ey+1);
+    if(e.boss){ ctx.font='16px '+EMOJI_FONT; ctx.fillText('👑',ex+e.r*0.7,ey-e.r*0.7); }
+    if(e.flash>0){ ctx.globalAlpha=.55; ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(ex,ey,e.r,0,7); ctx.fill(); ctx.globalAlpha=1; }
+    const bw=e.boss?70:44,bx=e.x-bw/2,by=ey-e.r-14;
+    ctx.fillStyle='rgba(0,0,0,.5)'; rr(ctx,bx-1,by-1,bw+2,7,3); ctx.fill();
+    const pct=Math.max(0,e.hp/e.max);
+    ctx.fillStyle=e.side>0?'#4ade80':'#f87171';
+    if(pct>0){ rr(ctx,bx,by,Math.max(2,bw*pct),5,2); ctx.fill(); }
+  }
+  baseBar(ctx,x,y,w,b,green){
+    const pct=Math.max(0,b.hp/b.max);
+    ctx.fillStyle='rgba(0,0,0,.45)'; rr(ctx,x,y,w,13,6); ctx.fill();
+    ctx.fillStyle=green?'#4ade80':'#f87171';
+    if(pct>0){ rr(ctx,x+2,y+2,Math.max(2,(w-4)*pct),9,4); ctx.fill(); }
+    ctx.font='bold 11px '+KID_FONT; ctx.fillStyle='#fff';
+    ctx.fillText(Math.ceil(Math.max(0,b.hp))+' / '+b.max, x+w/2, y+7);
+  }
+  drawBase(ctx,b,player){
+    const g=this.groundY;
+    if(player){
+      const x=8,y=g-138,w=96,h=138;
+      ctx.fillStyle=b.flash>0?'#fda4af':'#cbd5e1'; rr(ctx,x,y,w,h,12); ctx.fill();
+      ctx.strokeStyle='#64748b'; ctx.lineWidth=3; ctx.stroke();
+      ctx.fillStyle=b.flash>0?'#fda4af':'#94a3b8';
+      for(let i=0;i<4;i++){ rr(ctx,x+7+i*23,y-13,13,13,3); ctx.fill(); }
+      ctx.fillStyle='#475569'; rr(ctx,x+30,y+68,36,70,10); ctx.fill();
+      ctx.font='34px '+EMOJI_FONT; ctx.fillText('😺',x+w/2,y+38);
+      ctx.strokeStyle='#64748b'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(x+w/2,y-14); ctx.lineTo(x+w/2,y-46); ctx.stroke();
+      ctx.fillStyle='#f43f5e';
+      ctx.beginPath(); ctx.moveTo(x+w/2,y-46); ctx.lineTo(x+w/2+24,y-39); ctx.lineTo(x+w/2,y-32); ctx.closePath(); ctx.fill();
+      this.baseBar(ctx,x-2,y-64,w+4,b,true);
+    } else {
+      const x=898,y=g-112,w=96,h=112;
+      ctx.fillStyle=b.flash>0?'#fca5a5':'#b45309'; rr(ctx,x,y,w,h,8); ctx.fill();
+      ctx.strokeStyle='#7c2d12'; ctx.lineWidth=3; ctx.stroke();
+      ctx.fillStyle=b.flash>0?'#fca5a5':'#7c2d12';
+      ctx.beginPath(); ctx.moveTo(x-12,y+4); ctx.lineTo(x+w/2,y-44); ctx.lineTo(x+w+12,y+4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#1c1917'; rr(ctx,x+28,y+38,40,74,12); ctx.fill();
+      ctx.font='30px '+EMOJI_FONT; ctx.fillText('🐶',x+w/2,y+70);
+      ctx.font='16px '+EMOJI_FONT; ctx.fillText('🦴',x+w/2,y+20);
+      this.baseBar(ctx,x-2,y-60,w+4,b,false);
+    }
+  }
+}
+
+/* ============================ PROFILE / SAVE ============================ */
+function defaultProfile(){
+  return { coins:0, cleared:0, stars:{}, catLv:{}, walletLv:0, baseLv:0, sound:true, breaks:true, plays:0, lab:defaultLab() };
+}
+function loadProfile(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p=JSON.parse(raw), d=defaultProfile();
+      return Object.assign(d,p,{
+        catLv:Object.assign({},p.catLv||{}),
+        stars:Object.assign({},p.stars||{}),
+        lab:Object.assign(defaultLab(),p.lab||{})
+      });
+    }
+  }catch(e){}
+  return defaultProfile();
+}
+
+/* ============================ VUE APP ============================ */
+const app = Vue.createApp({
+  data(){
+    return {
+      BREAK_EVERY_MIN,
+      screen:'menu',
+      profile: loadProfile(),
+      hud:{ fish:0,fishCap:500,baseHp:0,baseMax:1,eBaseHp:0,eBaseMax:1,cds:[],deny:-1,boss:null,time:0 },
+      battle:null, stageIdx:0, result:null, resultStars:0, resultCoins:0, shownCoins:0,
+      gameJustBeat:false, tip:'', paused:false, speed:1,
+      toasts:[], toastSeq:0,
+      playSeconds:0, breakOpen:false,
+      resetArmed:false, confetti:[],
+      coinTok:0,
+      labCode:'', labMsg:'', labMsgOk:false, labReturn:'menu',
+      STAGES, CATS, CHAPTERS, LAB_DEFS, LAB_SKIES
+    };
+  },
+  computed:{
+    coins(){ return this.profile.coins; },
+    cleared(){ return this.profile.cleared; },
+    gameBeaten(){ return this.profile.cleared>=STAGES.length; },
+    availableCats(){ return CATS.filter(c=>c.unlock<=this.cleared); },
+    fishPct(){ return Math.max(0,Math.min(100,this.hud.fish/this.hud.fishCap*100)); },
+    fishDisp(){ return Math.floor(this.hud.fish); },
+    baseHpDisp(){ return Math.ceil(this.hud.baseHp); },
+    stageDef(){ return STAGES[this.stageIdx]||STAGES[0]; },
+    chapterView(){
+      const view=[];
+      for(let ci=0;ci<CHAPTERS.length;ci++){
+        const stages=[];
+        for(let i=ci*4;i<ci*4+4;i++){
+          stages.push({ idx:i, name:STAGES[i].name, stars:this.profile.stars[i]||0, locked:this.isLocked(i), isNext:i===this.cleared });
+        }
+        view.push({ num:ci+1, name:CHAPTERS[ci].name, emoji:CHAPTERS[ci].emoji, stages });
+      }
+      return view;
+    },
+    catRows(){
+      return CATS.map(c=>{
+        const lv=this.profile.catLv[c.id]||1;
+        const mul=1+0.13*(lv-1), next=1+0.13*lv;
+        const max=lv>=MAX_CAT_LV, cost=90*lv;
+        return {
+          c, lv, max, cost,
+          can:!max&&this.coins>=cost,
+          hp:Math.round(c.hp*mul), hpN:Math.round(c.hp*next),
+          dmg:Math.round(c.dmg*mul), dmgN:Math.round(c.dmg*next),
+          locked:this.cleared<c.unlock
+        };
+      });
+    },
+    walletView(){
+      const lv=this.profile.walletLv, max=lv>=MAX_WALLET_LV;
+      return { lv, max, cost:250*(lv+1),
+        rate:18+5*lv, rateN:18+5*(lv+1),
+        cap:500+150*lv, capN:500+150*(lv+1) };
+    },
+    baseView(){
+      const lv=this.profile.baseLv, max=lv>=MAX_BASE_LV;
+      return { lv, max, cost:220*(lv+1), hp:1200+350*lv, hpN:1200+350*(lv+1) };
+    },
+    appBg(){
+      const s=this.profile.lab.sky;
+      if(s==='sunset') return {background:'linear-gradient(180deg,#fda4af 0%,#fdba74 55%,#fde68a 100%)'};
+      if(s==='night')  return {background:'linear-gradient(180deg,#1e1b4b 0%,#3730a3 55%,#64748b 100%)'};
+      return {};
+    },
+    labReadout(){
+      const l=this.profile.lab;
+      return 'now → fishRate ×'+l.fishRate+' · heroDmg ×'+l.heroDmg+' · heroSpeed ×'+l.heroSpeed+' · foeHp ×'+l.foeHp;
+    }
+  },
+  methods:{
+    /* ------- navigation ------- */
+    go(screen){ SFX.play('click'); this.screen=screen; },
+    isLocked(i){ return i>this.cleared; },
+    save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(this.profile)); }catch(e){} },
+
+    /* ------- Game Master Lab ------- */
+    openLab(from){
+      SFX.play('click');
+      this.labReturn = (from==='pause' && this.battle) ? 'battle' : 'menu';
+      if(this.labReturn==='battle'){
+        this.paused=true; this.battle.paused=true;
+        this.battle.stop(); // rAF loop fully stops while the Lab is open
+      }
+      this.labMsg=''; this.screen='lab';
+    },
+    closeLab(){
+      SFX.play('click');
+      if(this.labReturn==='battle' && this.battle){
+        this.screen='battle'; // still paused — the pause overlay welcomes you back
+        this.$nextTick(()=>{
+          if(this.battle && this.$refs.cv){
+            this.battle.attach(this.$refs.cv); // canvas was re-created by v-if
+            this.battle.start();
+          }
+        });
+      } else {
+        this.labReturn='menu';
+        this.screen='menu';
+      }
+    },
+    setLab(key,ev){
+      const d=LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v=parseFloat(ev.target.value); if(!isFinite(v)) v=d.def;
+      v=Math.max(d.min,Math.min(d.max,v));
+      this.profile.lab[key]=Math.round(v*100)/100;
+      this.save();
+    },
+    pickSky(key){ this.profile.lab.sky=key; this.save(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.profile.lab, defaultLab()); // keep object identity (a running battle holds this ref)
+      this.save(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even for cats!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-trick. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.profile.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like fishRate = 2'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: fishRate = 2'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off to infinity! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const clamped=Math.max(def.min,Math.min(def.max,val));
+          const v=this.fmtNum(clamped);
+          this.profile.lab[name]=v;
+          this.save(); SFX.play('buy');
+          this.labMsg = clamped!==val
+            ? '✨ '+name+' wanted to be '+this.fmtNum(val)+', but I kept it safe at '+v+' (allowed: '+def.min+' to '+def.max+').'
+            : '✨ Done! '+name+' = '+v+'. Go play and feel it!';
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like heroDmg = 1.5';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ------- battle lifecycle ------- */
+    startStage(i){
+      if(this.isLocked(i)) return;
+      SFX.play('click');
+      if(this.battle){ this.battle.stop(); this.battle=null; }
+      this.stageIdx=i; this.result=null; this.gameJustBeat=false;
+      this.paused=false; this.speed=1;
+      this.hud.boss=null; this.hud.deny=-1;
+      this.screen='battle';
+      this.$nextTick(()=>this.initBattle());
+    },
+    initBattle(){
+      const cv=this.$refs.cv;
+      if(!cv) return;
+      const tips=[
+        'More Pawsome Guards = a stronger wall!',
+        'Level up heroes at the Cat College!',
+        'Archers hit hard from far away — keep them safe behind guards.',
+        'Save fish for a Big Tabby moment!',
+        'Watch out when a boss stomps in!'
+      ];
+      this.tip=tips[(Math.random()*tips.length)|0];
+      this.battle=new Battle({
+        stageIdx:this.stageIdx, profile:this.profile, hud:this.hud, sfx:SFX, lab:this.profile.lab,
+        onEnd:(res,hpPct)=>this.onBattleEnd(res,hpPct)
+      });
+      this.battle.speed=this.speed;
+      this.battle.attach(cv);
+      this.battle.start();
+      this.profile.plays++;
+      this.save();
+    },
+    onBattleEnd(res,hpPct){
+      const i=this.stageIdx, st=STAGES[i];
+      let stars=1, coinsWon=0;
+      if(res==='win'){
+        stars = hpPct>0.7?3:(hpPct>0.35?2:1);
+        const firstTime = i>=this.cleared;
+        coinsWon = firstTime ? st.reward : Math.round(st.reward*0.5);
+        if(firstTime) this.profile.cleared=i+1;
+        const best=this.profile.stars[i]||0;
+        if(stars>best) this.profile.stars[i]=stars;
+        this.profile.coins+=coinsWon;
+        this.gameJustBeat = (i===STAGES.length-1) && this.profile.cleared>=STAGES.length;
+        this.spawnConfetti();
+        const nu=CATS.find(c=>c.unlock===this.profile.cleared);
+        if(nu) this.pushToast('New hero unlocked: '+nu.emoji+' '+nu.name+'!','🎉');
+      }
+      this.result=res; this.resultStars=stars; this.resultCoins=coinsWon; this.shownCoins=0;
+      if(coinsWon>0){
+        const tok=++this.coinTok, t0=performance.now();
+        const tick=()=>{
+          const k=Math.min(1,(performance.now()-t0)/900);
+          this.shownCoins=Math.round(coinsWon*k);
+          if(k<1 && tok===this.coinTok) requestAnimationFrame(tick);
+        };
+        tick();
+      }
+      this.save();
+    },
+    nextStage(){ if(this.stageIdx<STAGES.length-1) this.startStage(this.stageIdx+1); },
+    replayStage(){ this.startStage(this.stageIdx); },
+    restartBattle(){ this.startStage(this.stageIdx); },
+    quitBattle(){
+      if(this.battle){ this.battle.stop(); this.battle=null; }
+      this.result=null; this.paused=false; this.breakOpen=false;
+      this.go('map');
+    },
+    goCollegeFromBattle(){
+      if(this.battle){ this.battle.stop(); this.battle=null; }
+      this.result=null; this.paused=false;
+      this.go('college');
+    },
+    deployCat(id){ if(this.battle) this.battle.deploy(id); },
+    canDeploy(id){
+      return !!this.battle && this.hud.cds && this.hud.cds[id]<=0 && this.hud.fish>=CATS[id].cost && !this.paused && !this.result;
+    },
+    cdPct(id){
+      const cd=(this.hud.cds && this.hud.cds[id])||0;
+      return Math.min(100,cd/CATS[id].cd*100);
+    },
+    togglePause(){
+      if(this.result||this.breakOpen) return;
+      this.paused=!this.paused;
+      if(this.battle) this.battle.paused=this.paused;
+      SFX.play('click');
+    },
+    resumeGame(){ this.paused=false; if(this.battle) this.battle.paused=false; SFX.play('click'); },
+    toggleSpeed(){
+      this.speed=this.speed===1?2:1;
+      if(this.battle) this.battle.speed=this.speed;
+      SFX.play('click');
+      this.pushToast(this.speed===1?'Speed: normal 🐢':'Speed: fast 🐇','⏩');
+    },
+
+    /* ------- college ------- */
+    buyCatUp(id){
+      const r=this.catRows.find(r=>r.c.id===id);
+      if(!r||r.max||this.coins<r.cost) return;
+      this.profile.coins-=r.cost;
+      this.profile.catLv[id]=r.lv+1;
+      SFX.play('buy'); this.save();
+      this.pushToast(r.c.emoji+' '+r.c.name+' is now Lv '+(r.lv+1)+'!','⬆️');
+    },
+    buyWalletUp(){
+      const w=this.walletView;
+      if(w.max||this.coins<w.cost) return;
+      this.profile.coins-=w.cost; this.profile.walletLv++;
+      SFX.play('buy'); this.save();
+      this.pushToast('Fish Wallet upgraded!','👛');
+    },
+    buyBaseUp(){
+      const b=this.baseView;
+      if(b.max||this.coins<b.cost) return;
+      this.profile.coins-=b.cost; this.profile.baseLv++;
+      SFX.play('buy'); this.save();
+      this.pushToast('Cat Tower upgraded!','🏰');
+    },
+
+    /* ------- settings ------- */
+    toggleSound(){
+      this.profile.sound=!this.profile.sound;
+      SFX.on=this.profile.sound;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    toggleBreaks(){
+      this.profile.breaks=!this.profile.breaks;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.breaks?'Break reminders on ⏰':'Break reminders off','⏰');
+    },
+    armReset(){
+      this.resetArmed=true;
+      clearTimeout(this._ra);
+      this._ra=setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile=defaultProfile();
+      this.resetArmed=false;
+      SFX.on=true;
+      this.screen='menu';
+      this.pushToast('Fresh start! Good luck, heroes!','🌱');
+    },
+
+    /* ------- misc ------- */
+    pushToast(msg,emoji){
+      const id=++this.toastSeq;
+      this.toasts.push({id,msg,emoji:emoji||'🐾'});
+      setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600);
+    },
+    spawnConfetti(){
+      const em=['⭐','🎉','🐟','💓','🐾','✨'];
+      const out=[];
+      for(let i=0;i<28;i++){
+        out.push({ e:em[(Math.random()*em.length)|0],
+          left:Math.random()*96, dur:(2.2+Math.random()*1.6),
+          delay:Math.random()*0.7, size:16+Math.random()*18 });
+      }
+      this.confetti=out;
+    },
+    openBreak(){
+      this.breakOpen=true;
+      this.paused=true;
+      if(this.battle) this.battle.paused=true;
+    },
+    breakSnooze(){
+      this.breakOpen=false;
+      this.playSeconds=Math.max(0,BREAK_EVERY_MIN*60-BREAK_SNOOZE_MIN*60);
+      this.resumeGame();
+    },
+    breakDone(){
+      this.breakOpen=false;
+      this.playSeconds=0;
+      this.quitBattle();
+    }
+  },
+  mounted(){
+    SFX.on=this.profile.sound;
+    window.addEventListener('keydown',(e)=>{
+      if(this.screen==='lab' && e.key==='Escape'){ this.closeLab(); return; }
+      if(this.screen!=='battle'||this.result||this.breakOpen) return;
+      if(e.key>='1'&&e.key<='7'){
+        const idx=+e.key-1, ac=this.availableCats;
+        if(idx<ac.length) this.deployCat(ac[idx].id);
+      } else if(e.key==='p'||e.key==='P'||e.key===' '){
+        e.preventDefault(); this.togglePause();
+      } else if(e.key==='Escape'){
+        if(this.paused) this.resumeGame(); else this.togglePause();
+      }
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden && this.screen==='battle' && this.battle && !this.result && !this.paused){
+        this.paused=true; this.battle.paused=true;
+      }
+    });
+    setInterval(()=>{
+      if(this.screen==='battle' && this.battle && !this.paused && !this.result){
+        this.playSeconds++;
+        if(this.profile.breaks && this.playSeconds>=BREAK_EVERY_MIN*60) this.openBreak();
+      }
+    },1000);
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    this.pushToast('Welcome, heroes! 🐱','👋');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>

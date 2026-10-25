@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play &amp; Code — For Parents 👪</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👪</text></svg>">
+<!--
+  PLAY & CODE — parents' page.
+  100% static: no scripts, no libraries, no internet, zero external URLs.
+  Explains what this collection is, how to run it, why it's kid-safe,
+  and how the in-game "Game Master Lab" teaches real coding ideas.
+-->
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;
+    background:linear-gradient(180deg,#7ec8f7 0%,#a5e0fb 40%,#d8f3c4 100%);
+    min-height:100vh;overflow-x:hidden;color:#334155;
+  }
+  .cloud{position:fixed;background:rgba(255,255,255,.85);border-radius:999px;animation:drift linear infinite;z-index:0}
+  .cloud::before,.cloud::after{content:'';position:absolute;background:inherit;border-radius:50%}
+  .cloud::before{width:60%;height:160%;left:15%;top:-70%}
+  .cloud::after{width:40%;height:110%;right:12%;top:-40%}
+  @keyframes drift{from{left:-260px}to{left:110%}}
+  .wrap{position:relative;z-index:1;max-width:860px;margin:0 auto;padding:2rem 1rem 3rem}
+  header{text-align:center;margin-bottom:1.6rem}
+  .mascots{font-size:3rem;letter-spacing:.3rem}
+  .mascots span{display:inline-block;animation:bob 2.4s ease-in-out infinite}
+  .mascots span:nth-child(2){animation-delay:.3s}
+  .mascots span:nth-child(3){animation-delay:.6s}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  h1{margin:.4rem 0 .2rem;font-size:clamp(1.8rem,4.6vw,2.7rem);color:#fff;
+     text-shadow:0 3px 0 rgba(0,0,0,.22);letter-spacing:.02rem}
+  .tag{font-weight:700;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.15);margin:0}
+  .card{
+    background:rgba(255,255,255,.92);border-radius:1.6rem;padding:1.4rem 1.3rem;
+    border:4px solid #fff;box-shadow:0 6px 0 rgba(0,0,0,.13),0 14px 26px rgba(31,45,60,.12);
+    margin-top:1.4rem;
+  }
+  .card h2{margin:0 0 .6rem;font-size:1.3rem;display:flex;align-items:center;gap:.5rem}
+  .card p{margin:.4rem 0;line-height:1.55;font-size:.95rem;font-weight:700}
+  .card ul{margin:.5rem 0 .2rem;padding-left:1.3rem;line-height:1.6;font-size:.92rem;font-weight:700}
+  .card li{margin:.3rem 0}
+  code{background:#eef6ff;border-radius:.45rem;padding:.06rem .4rem;font-size:.9em;
+       font-family:Consolas,'Courier New',monospace;font-weight:700;color:#1d4ed8}
+  .c1{border-color:#fbbf24}.c2{border-color:#60a5fa}.c3{border-color:#84cc16}
+  .c4{border-color:#a855f7}.c5{border-color:#f472b6}.c6{border-color:#14b8a6}
+  .check{list-style:none;padding-left:.2rem}
+  .check li::before{content:'✅ ';font-size:.85em}
+  .back{
+    display:inline-flex;align-items:center;gap:.5rem;margin-top:1.8rem;padding:.7rem 1.5rem;
+    background:linear-gradient(180deg,#4ade80,#22c55e);color:#fff;font-weight:900;
+    border-radius:999px;text-decoration:none;font-size:1rem;
+    box-shadow:0 4px 0 rgba(0,0,0,.18);transition:transform .16s,filter .16s;
+  }
+  .back:hover{transform:translateY(-4px) scale(1.03);filter:brightness(1.07)}
+  .back:active{transform:scale(.96)}
+  .center{text-align:center}
+  .foot{margin-top:2.4rem;text-align:center;color:#334155;font-weight:900;font-size:.85rem;text-shadow:0 1px 0 rgba(255,255,255,.6)}
+</style>
+</head>
+<body>
+  <div class="cloud" style="width:170px;height:52px;top:8%;animation-duration:75s"></div>
+  <div class="cloud" style="width:120px;height:40px;top:30%;animation-duration:95s;animation-delay:-40s"></div>
+  <div class="cloud" style="width:210px;height:60px;top:60%;animation-duration:120s;animation-delay:-70s"></div>
+
+  <div class="wrap">
+    <header>
+      <div class="mascots"><span>👪</span><span>🎮</span><span>🛠️</span></div>
+      <h1>Play &amp; Code — For Parents</h1>
+      <p class="tag">Everything you need to know, in five minutes. 🌈</p>
+    </header>
+
+    <main>
+      <section class="card c1">
+        <h2>🎮 What this is</h2>
+        <p><strong>Play &amp; Code</strong> is a collection of 9 free, completely offline games for kids.
+        Your child plays a game first — then opens the in-game <strong>"Game Master Lab"</strong>,
+        a friendly control panel where they can change how the game actually works.
+        Slide gravity down and watch the jumps float. Bump the speed up and try to keep up.
+        That's the idea: play first, then peek under the hood and learn real coding ideas by doing.</p>
+      </section>
+
+      <section class="card c2">
+        <h2>🖱️ How to run</h2>
+        <p>Double-click any game's <code>index.html</code> — it opens in any modern web browser
+        (Chrome, Edge, Firefox, Safari). There is <strong>no install, no account, and no internet
+        needed</strong>. Everything each game needs (including its Vue and Tailwind libraries) is
+        bundled inside that game's <code>lib/</code> folder.</p>
+        <p>Moving to another computer? Copy the <em>whole</em> game folder — including its
+        <code>lib/</code> folder — and it will keep working. Keep the root
+        <code>index.html</code> next to the game folders and you get the pretty game-picker dashboard too.</p>
+      </section>
+
+      <section class="card c3">
+        <h2>🛡️ Kid-safe by design</h2>
+        <ul class="check">
+          <li>No ads — there is no advertising code anywhere in the collection.</li>
+          <li>No external links — the games contain zero web addresses. You can verify this yourself:
+            open any game's <code>index.html</code> in a text editor and search for "http"; the only
+            match is a harmless technical string inside the emoji icon.</li>
+          <li>No accounts, no sign-ups, no email addresses.</li>
+          <li>No data collection — nothing is ever sent anywhere.</li>
+          <li>No purchases, no in-app stores, no loot boxes, no gambling-style randomness.</li>
+          <li>No energy meters, no wait timers, no daily streaks — nothing punishes a child for
+            putting the game down.</li>
+          <li>Gentle fail states only: a bounce, a poof, a "Good try!" — never punishment language
+            or scary imagery.</li>
+          <li>Progress is stored only in the browser's local storage on that computer. To wipe it,
+            use the game's Settings → "Reset everything" button (it asks twice before wiping).</li>
+        </ul>
+      </section>
+
+      <section class="card c4">
+        <h2>🧠 What kids learn — the Game Master Lab</h2>
+        <p>Every game has a chunky <strong>"🛠️ Game Master"</strong> button on its menu screen. Inside the Lab:</p>
+        <ul>
+          <li><strong>Real controls, real variables.</strong> Sliders, toggles, and color/emoji pickers
+            are wired to the actual constants in the game's code — gravity, speed, spawn rates,
+            colors. Every change applies live, so the game visibly changes the instant a slider moves.</li>
+          <li><strong>Short lesson cards.</strong> Friendly one-screen cards introduce coding ideas —
+            variables, numbers, conditions ("if"), loops, and functions — each tied to the exact
+            control your child is touching.</li>
+          <li><strong>A mini code box.</strong> Kids can type simple assignments like
+            <code>gravity = 0.4</code> and see them take effect. This is handled by a small, safe
+            parser: it only understands the game's known variable names and basic arithmetic, and
+            results are clamped to safe ranges. It never runs arbitrary code — mistyped input just
+            gets a friendly "Oops —" explanation.</li>
+        </ul>
+        <p>Each game's <code>README.md</code> lists its lesson cards and the exact constants it
+        exposes, so you know precisely what to explore together.</p>
+      </section>
+
+      <section class="card c5">
+        <h2>🤝 Helping your child</h2>
+        <ul>
+          <li>Suggested age: roughly <strong>6–11</strong>. Younger kids will enjoy the play; older
+            kids will dig deeper into the Lab.</li>
+          <li>Sit together for the first visit to a Game Master Lab — move one slider, play, move it
+            again. The instant feedback is the whole lesson.</li>
+          <li>Ask <em>"what happens if…?"</em> and let them predict before they try. Wrong guesses
+            are the best teachers, and "Reset to normal" is always one click away.</li>
+          <li>Ready for more? Each game's <code>README.md</code> has a "tweaking the game" section
+            showing where those constants live in the real source code.</li>
+        </ul>
+      </section>
+
+      <section class="card c6">
+        <h2>📜 Free &amp; open source (MIT)</h2>
+        <p>In plain English: you may <strong>copy, change, and share</strong> this entire collection —
+        at home, in classrooms, in clubs, anywhere — for free, forever. The only conditions are that
+        you keep the copyright notice, and that the software comes with <strong>no warranty of any
+        kind</strong>. See the <code>LICENSE</code> file in this folder for the full text.</p>
+      </section>
+
+      <div class="center">
+        <a class="back" href="index.html">⬅ Back to the games</a>
+      </div>
+    </main>
+
+    <footer class="foot">made with ❤️ for young coders · free &amp; open source (MIT)</footer>
+  </div>
+</body>
+</html>

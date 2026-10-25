@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paw Chess ♟️</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♟️</text></svg>">
+<!--
+  PAW CHESS v1.1 — part of the "Play & Code" collection (MIT licensed).
+  Real, complete chess with a warm cute skin, for young coders ages 6–11.
+  Parent notes:
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * Full correct chess: castling, en passant, promotion, check/checkmate/stalemate,
+    draws by insufficient material / 50-move rule / threefold repetition.
+  * vs Computer: 🐱 Kitten (easy), 🐶 Friend (medium), 🦉 Wise Owl (hard) — minimax with alpha-beta.
+  * Kid helpers: legal-move dots, unlimited hints, unlimited undo. Nothing is ever punished.
+  * The 🛠️ Game Master Lab lets kids tune real game constants and type real (tiny) code.
+  * Saved under localStorage key "pawChessSave1" (game in progress + records + settings + lab).
+  * Parents: tweak difficulty from the Game Master Lab in the game — no code editing needed.
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#a8d8a0;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>♟️ Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:#d9f2c0;font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  /* ---- page themes (picked in the Game Master Lab) ---- */
+  .app-root{--bg1:#ffe9b8;--bg2:#d9f2c0;--bg3:#b7e0f2;--sqL:#f5ecd7;--sqD:#b2d8a6;--coordL:#7fae7a;--coordD:#f2e8cf;--ink:#7a4a12;
+       background:linear-gradient(180deg,var(--bg1) 0%,var(--bg2) 45%,var(--bg3) 100%)}
+  .app-root.theme-berry{--bg1:#ffc2e2;--bg2:#d3b3f5;--bg3:#9ec5f5;--sqL:#fdeef8;--sqD:#c3a6ea;--coordL:#a881d0;--coordD:#fdeef8;--ink:#7c2d68}
+  .app-root.theme-ocean{--bg1:#93d6f5;--bg2:#8fe0c8;--bg3:#f7d99a;--sqL:#eef8fd;--sqD:#7fb9d6;--coordL:#5f9ec4;--coordD:#eef8fd;--ink:#155e75}
+  .ink-text{color:var(--ink)}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;min-height:44px;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  @keyframes pulseSoft{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+  .pulse-tag{animation:pulseSoft 1s infinite;display:inline-block}
+  @keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  @keyframes fall{to{transform:translateY(680px) rotate(360deg)}}
+  .confetti{position:absolute;top:-50px;animation:fall linear forwards;pointer-events:none}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  .scroll-y::-webkit-scrollbar{width:6px}
+  .scroll-y::-webkit-scrollbar-thumb{background:#f59e0b;border-radius:3px}
+  .lab-slider{width:100%;height:34px;accent-color:#f59e0b;cursor:pointer}
+
+  /* ---- chess board ---- */
+  .board-col{width:min(96vw,520px,calc(100vh - 230px))}
+  .chess-board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:100%;aspect-ratio:1;border-radius:1rem;overflow:hidden;box-shadow:0 8px 0 rgba(0,0,0,.14),0 0 0 6px rgba(255,255,255,.65);touch-action:manipulation}
+  .sq{position:relative;display:flex;align-items:center;justify-content:center;border:0;padding:0;cursor:pointer;user-select:none;line-height:1}
+  .sq.light{background-color:var(--sqL)}
+  .sq.dark{background-color:var(--sqD)}
+  .sq.lm{background-image:linear-gradient(rgba(255,213,79,.45),rgba(255,213,79,.45))}
+  .sq.sel{background-image:radial-gradient(circle,rgba(255,200,60,.75),rgba(255,213,79,.25) 75%)}
+  @keyframes chkPulse{0%,100%{background-image:radial-gradient(circle,rgba(248,113,113,.65),rgba(248,113,113,.15) 72%)}50%{background-image:radial-gradient(circle,rgba(248,113,113,.28),rgba(248,113,113,.05) 72%)}}
+  .sq.chk{animation:chkPulse 1.15s ease-in-out infinite}
+  .sq.deny{animation:shakeX .3s}
+  @keyframes hintPulse{0%,100%{box-shadow:inset 0 0 0 5px rgba(168,85,247,.85)}50%{box-shadow:inset 0 0 0 5px rgba(168,85,247,.3)}}
+  .sq.hintSq{animation:hintPulse 1s ease-in-out infinite}
+  .pc{font-family:'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans','Arial Unicode MS',sans-serif;line-height:1;pointer-events:none;transform:translateY(-2%)}
+  .pc.w{color:#fffaf0;-webkit-text-stroke:1px #6b543c;text-shadow:0 2px 0 #7a5f42,1px 0 0 #7a5f42,-1px 0 0 #7a5f42,0 -1px 0 #7a5f42,2px 3px 4px rgba(0,0,0,.25)}
+  .pc.b{color:#4a3728;text-shadow:0 2px 3px rgba(0,0,0,.3)}
+  .board-sq-font{font-size:clamp(20px,7.6vmin,46px)}
+  @media (min-width:1024px){.board-sq-font{font-size:clamp(24px,3.4vw,46px)}}
+  @keyframes hop{0%,100%{transform:translateY(0)}30%{transform:translateY(-18%) scale(1.1)}60%{transform:translateY(0)}80%{transform:translateY(-7%)}}
+  .sq.sel .pc{animation:hop .7s ease-in-out infinite}
+  @keyframes hopIn{0%{transform:translateY(-32%) scale(1.22)}55%{transform:translateY(4%)}100%{transform:translateY(-2%)}}
+  .pc.hopin{animation:hopIn .35s ease-out}
+  .dot{position:absolute;width:28%;height:28%;border-radius:50%;background:rgba(56,92,46,.34);pointer-events:none}
+  .ring{position:absolute;inset:5%;border-radius:50%;border:.42rem solid rgba(56,92,46,.34);box-sizing:border-box;pointer-events:none}
+  @keyframes poofA{0%{transform:scale(.4);opacity:0}30%{opacity:1}100%{transform:scale(2);opacity:0}}
+  .poof{position:absolute;font-size:78%;pointer-events:none;animation:poofA .6s ease-out forwards}
+  .coord{position:absolute;font-size:10px;font-weight:800;opacity:.6;pointer-events:none}
+  .coord.f{right:3px;bottom:1px}
+  .coord.r{left:3px;top:1px}
+  .sq.light .coord{color:var(--coordL)}
+  .sq.dark .coord{color:var(--coordD)}
+  .tray{font-family:'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans',sans-serif;font-size:1rem;line-height:1;letter-spacing:1px}
+  .tray .tw{color:#8a6d4f}
+  .tray .tb{color:#4a3728}
+  .pick-card{border-radius:1.2rem;background:linear-gradient(180deg,#ffffff,#fef3c7);box-shadow:0 4px 0 rgba(0,0,0,.15);border:3px solid #fcd34d;padding:.6rem .5rem;text-align:center;cursor:pointer;transition:transform .1s,filter .15s;font-family:inherit}
+  .pick-card:active{transform:scale(.94)}
+  .pick-card.on{border-color:#22c55e;background:linear-gradient(180deg,#ffffff,#dcfce7);transform:translateY(-2px)}
+</style>
+</head>
+<body>
+<div id="app">
+<div class="app-root min-h-screen font-kid select-none" :class="'theme-'+profile.lab.theme">
+
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none px-4">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center">
+    <div class="text-6xl md:text-7xl"><span class="bob">♟️</span><span class="bob" style="animation-delay:.3s">🐾</span><span class="bob" style="animation-delay:.6s">♔</span></div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold ink-text drop-shadow-[0_3px_0_rgba(0,0,0,.25)]">Paw Chess</h1>
+      <p class="ink-text font-bold mt-2 text-lg drop-shadow">Real chess with paw-some friends! 🐱🐶🦉</p>
+    </div>
+    <div class="flex flex-col gap-3 w-72">
+      <button class="btn btn-green btn-xl" @click="go('newgame')">▶ Play!</button>
+      <button class="btn btn-amber btn-xl" @click="openLab('menu')">🛠️ Game Master</button>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="ink-text text-xs font-bold mt-2">🌱 offline · no ads · real chess rules · v1.1</div>
+    <div class="ink-text text-xs font-bold absolute bottom-3">♟️ Play &amp; Code · made with ❤️ for young coders · v1.1</div>
+  </div>
+
+  <!-- ============ NEW GAME / RESUME ============ -->
+  <div v-else-if="screen==='newgame'" class="max-w-xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold ink-text drop-shadow">♟️ Play Chess</h1>
+    </div>
+
+    <!-- resume offer -->
+    <div v-if="inProgressSaved" class="panel !p-4 flex items-center gap-3">
+      <span class="text-4xl">↩️</span>
+      <div class="flex-1 min-w-0">
+        <div class="font-black text-slate-700">You have a game going!</div>
+        <div class="text-xs font-bold text-slate-500">{{savedDesc}}</div>
+      </div>
+      <button class="btn btn-green !px-4 !py-2 text-sm whitespace-nowrap" @click="resumeGame">Resume</button>
+    </div>
+
+    <!-- mode -->
+    <div class="panel !p-4">
+      <div class="font-black text-slate-700 mb-2">1. Who are you playing?</div>
+      <div class="grid grid-cols-2 gap-3">
+        <button class="pick-card" :class="{'on':ngMode==='ai'}" @click="ngMode='ai'">
+          <div class="text-3xl">🐱🐶🦉</div>
+          <div class="text-sm font-black text-slate-700 mt-1">vs Computer</div>
+        </button>
+        <button class="pick-card" :class="{'on':ngMode==='2p'}" @click="ngMode='2p'">
+          <div class="text-3xl">👥</div>
+          <div class="text-sm font-black text-slate-700 mt-1">Two Players</div>
+          <div class="text-[10px] font-bold text-slate-500">one screen, take turns</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- difficulty -->
+    <div v-if="ngMode==='ai'" class="panel !p-4">
+      <div class="font-black text-slate-700 mb-2">2. Pick your partner!</div>
+      <div class="flex flex-col gap-2">
+        <button v-for="(lv,key) in LEVELS" :key="key" class="pick-card flex items-center gap-3 !text-left" :class="{'on':ngLevel===key}" @click="ngLevel=key">
+          <span class="text-4xl">{{lv.emoji}}</span>
+          <span class="flex-1 min-w-0">
+            <span class="block text-sm font-black text-slate-700">{{lv.name}}</span>
+            <span class="block text-[11px] font-bold text-slate-500 leading-tight">{{lv.blurb}}</span>
+            <span class="block text-[11px] font-bold text-slate-400">🏆 {{profile.records[key].w}} · 🤝 {{profile.records[key].d}} · {{lv.emoji}} {{profile.records[key].l}}</span>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <!-- side -->
+    <div v-if="ngMode==='ai'" class="panel !p-4">
+      <div class="font-black text-slate-700 mb-2">3. Which color are you?</div>
+      <div class="grid grid-cols-2 gap-3">
+        <button class="pick-card" :class="{'on':ngSide==='w'}" @click="ngSide='w'">
+          <div class="board-sq-font"><span class="pc w">♚</span></div>
+          <div class="text-sm font-black text-slate-700 mt-1">☀️ White</div>
+          <div class="text-[10px] font-bold text-slate-500">moves first</div>
+        </button>
+        <button class="pick-card" :class="{'on':ngSide==='b'}" @click="ngSide='b'">
+          <div class="board-sq-font"><span class="pc b">♚</span></div>
+          <div class="text-sm font-black text-slate-700 mt-1">🌙 Black</div>
+          <div class="text-[10px] font-bold text-slate-500">computer starts</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- start (two-tap confirm if a game is in progress) -->
+    <div class="flex flex-col items-center gap-2 pb-4">
+      <button v-if="!startArmed" class="btn btn-green btn-xl" @click="tryStart">🐾 Let's Play!</button>
+      <div v-else class="panel !p-3 flex items-center gap-2 flex-wrap justify-center">
+        <span class="text-xs font-black text-rose-600">A game is still going — start a new one anyway?</span>
+        <button class="btn btn-red !py-1.5 !px-3 text-xs" @click="confirmStart">Yes, new game!</button>
+        <button class="btn btn-white !py-1.5 !px-3 text-xs" @click="startArmed=false">Keep playing</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GAME ============ -->
+  <div v-else-if="screen==='game' && game" class="max-w-5xl mx-auto p-2 md:p-4 flex flex-col gap-2 min-h-screen items-center">
+
+    <!-- header -->
+    <div class="board-col flex items-center gap-2">
+      <button class="btn btn-white !px-3 !py-1.5" @click="togglePause" title="Pause (P)">⏸️</button>
+      <div class="panel flex-1 min-w-0 flex items-center justify-between gap-2 px-3 py-1.5">
+        <span class="font-black text-slate-700 text-sm truncate">🐾 Paw Chess</span>
+        <span class="text-xs font-bold text-slate-500 truncate">{{modeLabel}}</span>
+      </div>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-3 items-center lg:items-start justify-center w-full">
+      <!-- board column -->
+      <div class="board-col flex flex-col gap-2">
+        <!-- top player -->
+        <div class="panel flex items-center gap-2 px-3 py-1.5 min-h-[2.6rem]">
+          <span class="text-xl">{{playerInfo(topColor).emoji}}</span>
+          <span class="text-sm font-black text-slate-700 truncate">{{playerInfo(topColor).name}}</span>
+          <span class="tray flex-1 min-w-0 text-right truncate" title="pieces captured">
+            <span v-for="(p,k) in trayFor(topColor)" :key="k" :class="topColor==='w'?'tb':'tw'">{{p}}</span>
+          </span>
+          <span v-if="advFor(topColor)>0" class="text-xs font-black text-emerald-600 tabular-nums whitespace-nowrap">+{{advFor(topColor)}}</span>
+        </div>
+
+        <!-- board -->
+        <div class="chess-board">
+          <button v-for="(sq,dIdx) in squares" :key="sq" class="sq board-sq-font" :class="sqClass(sq)" @click="tapSquare(sq)">
+            <span v-if="pieceAt(sq)" class="pc" :class="pieceClass(sq)" :style="pieceStyle(sq)">{{pieceGlyph(sq)}}</span>
+            <span v-if="showDots && targetMap[sq]" :class="targetMap[sq].cap?'ring':'dot'"></span>
+            <span v-if="poofAt(sq)" class="poof">{{poofAt(sq).e}}</span>
+            <span v-if="dIdx>=56" class="coord f">{{fileChar(sq)}}</span>
+            <span v-if="dIdx%8===0" class="coord r">{{rankChar(sq)}}</span>
+          </button>
+        </div>
+
+        <!-- bottom player -->
+        <div class="panel flex items-center gap-2 px-3 py-1.5 min-h-[2.6rem]">
+          <span class="text-xl">{{playerInfo(bottomColor).emoji}}</span>
+          <span class="text-sm font-black text-slate-700 truncate">{{playerInfo(bottomColor).name}}</span>
+          <span class="tray flex-1 min-w-0 text-right truncate" title="pieces captured">
+            <span v-for="(p,k) in trayFor(bottomColor)" :key="k" :class="bottomColor==='w'?'tb':'tw'">{{p}}</span>
+          </span>
+          <span v-if="advFor(bottomColor)>0" class="text-xs font-black text-emerald-600 tabular-nums whitespace-nowrap">+{{advFor(bottomColor)}}</span>
+        </div>
+
+        <!-- controls -->
+        <div class="flex flex-wrap gap-2 justify-center">
+          <button class="btn btn-white !px-3 !py-2 text-sm" :disabled="!canUndo" @click="undoMove">↩️ Undo</button>
+          <button class="btn btn-amber !px-3 !py-2 text-sm" :disabled="!canHint" @click="askHint">💡 Hint</button>
+          <button class="btn btn-white !px-3 !py-2 text-sm" @click="toggleLegal">🎯 Dots: {{profile.showLegal?'ON':'OFF'}}</button>
+          <button v-if="game.mode==='2p'" class="btn btn-white !px-3 !py-2 text-sm" @click="toggleFlip">🔄 Flip: {{profile.flip2p?'ON':'OFF'}}</button>
+        </div>
+      </div>
+
+      <!-- side column -->
+      <div class="flex flex-col gap-2 w-full max-w-[560px] lg:w-60 flex-1">
+        <div class="panel !p-3 text-center">
+          <div v-if="game.over" class="font-black text-lg" :class="overInfo.colorClass">{{overInfo.title}}</div>
+          <div v-else-if="aiBusy" class="font-black text-slate-700">{{LEVELS[game.level].emoji}} {{LEVELS[game.level].name}} is thinking<span class="pulse-tag">…</span></div>
+          <div v-else-if="game.mode==='ai'" class="font-black" :class="isPlayerTurn?'text-emerald-600':'text-slate-700'">{{isPlayerTurn?'✨ Your turn — tap a piece!':'…'}}</div>
+          <div v-else class="font-black text-slate-700">{{cur.turn==='w'?'☀️ White to move':'🌙 Black to move'}}</div>
+          <div class="text-xs font-bold text-slate-400 mt-1">move {{cur.fullmove}} · {{game.notes.length}} played</div>
+          <div v-if="game.notes.length" class="text-sm font-black text-slate-600 mt-1">last: <span class="text-amber-700">{{game.notes[game.notes.length-1]}}</span></div>
+        </div>
+        <div class="panel !p-2">
+          <div ref="movelist" class="h-28 lg:h-40 overflow-y-auto scroll-y flex flex-col gap-0.5 text-sm font-bold pr-1">
+            <div v-if="!moveRows.length" class="text-slate-400 text-xs text-center py-3">No moves yet — ☀️ White starts!</div>
+            <div v-for="row in moveRows" :key="row.n" class="flex gap-2 items-baseline">
+              <span class="text-slate-400 w-6 text-right text-xs tabular-nums">{{row.n}}.</span>
+              <span class="text-amber-700 w-16 truncate">{{row.w}}</span>
+              <span class="text-slate-700 w-16 truncate">{{row.b}}</span>
+            </div>
+          </div>
+        </div>
+        <div class="panel !p-2 text-[11px] font-bold text-slate-500 text-center leading-snug">🎯 dots show where a piece can go<br>💡 Hint always helps · ↩️ Undo takes back<br>P = pause</div>
+      </div>
+    </div>
+
+    <!-- promotion picker -->
+    <div v-if="promoOpen" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-6 text-center shadow-2xl max-w-xs w-full">
+        <div class="text-4xl mb-1">👑</div>
+        <h3 class="text-xl font-extrabold text-slate-700">Your pawn made it!</h3>
+        <p class="text-xs font-bold text-slate-500 mb-4">Pick its brand-new shape:</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button v-for="pr in promoChoices" :key="pr" class="pick-card" @click="pickPromo(pr)">
+            <span class="board-sq-font inline-block"><span class="pc" :class="promoOpen.color==='w'?'w':'b'">{{FILLED[pr]}}</span></span>
+            <span class="block text-xs font-black text-slate-700 mt-1">{{promoName[pr]}}</span>
+          </button>
+        </div>
+        <button class="btn btn-white !py-2 mt-3 text-sm" @click="cancelPromo">Not yet!</button>
+      </div>
+    </div>
+
+    <!-- pause overlay -->
+    <div v-if="paused && !game.over && !promoOpen" class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+        <div class="text-5xl mb-1">⏸️</div>
+        <h2 class="text-2xl font-extrabold text-slate-700 mb-3">Paused</h2>
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-green" @click="togglePause">▶ Keep Playing</button>
+          <button class="btn btn-white" :disabled="!canUndo" @click="pauseUndo">↩️ Undo a move</button>
+          <button class="btn btn-white" @click="toggleSound">{{profile.sound?'🔊 Sound: ON':'🔇 Sound: OFF'}}</button>
+          <button class="btn btn-purple" @click="openLab('pause')">🛠️ Game Master Lab</button>
+          <button class="btn btn-amber" @click="goLevels">🆕 New Game</button>
+          <button class="btn btn-white" @click="quitToMenu">🏠 Menu</button>
+        </div>
+        <div class="text-[10px] font-bold text-slate-400 mt-3">your game is saved automatically 💾</div>
+      </div>
+    </div>
+
+    <!-- game over overlay -->
+    <div v-if="game.over" class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
+      <div class="confetti" v-for="(c,i) in confetti" :key="i" :style="{left:c.left+'%',animationDuration:c.dur+'s',animationDelay:c.delay+'s',fontSize:c.size+'px'}">{{c.e}}</div>
+      <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl relative z-10">
+        <div class="text-6xl">{{overInfo.emoji}}</div>
+        <h2 class="text-3xl font-extrabold mt-1" :class="overInfo.colorClass">{{overInfo.title}}</h2>
+        <p class="text-sm font-bold text-slate-500 mt-1 mb-4">{{overInfo.sub}}</p>
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-green" @click="rematch">🔁 Play again!</button>
+          <div class="flex gap-2">
+            <button class="btn btn-amber flex-1" @click="goLevels">🎚️ Levels</button>
+            <button class="btn btn-white flex-1" @click="quitToMenu">🏠 Menu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold ink-text drop-shadow">❓ How to Play Chess</h1>
+    </div>
+    <div class="panel !p-5 flex flex-col gap-4 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="board-sq-font w-10 text-center"><span class="pc b">♟</span></span><p><b>Pawn</b> walks one square forward (two on its very first go) and eats one square diagonally. March it to the far end and it becomes a Queen — or a Rook, Bishop or Knight! 👑</p></div>
+      <div class="flex gap-3 items-start"><span class="board-sq-font w-10 text-center"><span class="pc b">♜</span></span><p><b>Rook</b> slides as far as it likes in straight lines — along rows and columns.</p></div>
+      <div class="flex gap-3 items-start"><span class="board-sq-font w-10 text-center"><span class="pc b">♞</span></span><p><b>Knight</b> is the horse! It hops in an L-shape (two + one) and is the ONLY piece that can jump over friends.</p></div>
+      <div class="flex gap-3 items-start"><span class="board-sq-font w-10 text-center"><span class="pc b">♝</span></span><p><b>Bishop</b> slides as far as it likes along diagonals — it stays on its own color forever!</p></div>
+      <div class="flex gap-3 items-start"><span class="board-sq-font w-10 text-center"><span class="pc b">♛</span></span><p><b>Queen</b> slides any direction — rows, columns and diagonals. She's the strongest piece!</p></div>
+      <div class="flex gap-3 items-start"><span class="board-sq-font w-10 text-center"><span class="pc b">♚</span></span><p><b>King</b> takes one careful step in any direction. When the enemy king can't escape, that's <b>checkmate</b> — you win! ♟️</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl w-10 text-center">🎯</span><p>Tap your piece to see 🟢 dots where it can go. Stuck? The <b>💡 Hint</b> button shows a good move, and <b>↩️ Undo</b> takes moves back — no limits, no worries!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl w-10 text-center">🌟</span><p>Chess has lots more secrets — castling, en passant and more. Ask a grown-up to show you the rest!</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="max-w-md mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold ink-text drop-shadow">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <p class="text-xs font-bold ink-text text-center drop-shadow px-4">🎯 The dots helper and the board flip live on the game screen — dots are ON by default to help new players.</p>
+
+      <div class="panel !p-4">
+        <div class="font-black text-slate-700 text-sm mb-2">🏆 Your chess record (vs computer)</div>
+        <div v-for="(lv,key) in LEVELS" :key="key" class="text-xs font-bold text-slate-600 py-0.5">
+          {{lv.emoji}} vs {{lv.name}}: 🏆 {{profile.records[key].w}} wins · 🤝 {{profile.records[key].d}} draws · {{lv.emoji}} {{profile.records[key].l}} {{lv.name}} wins
+        </div>
+        <div class="text-[11px] font-bold text-slate-400 mt-2">Draws are friendly. Trying again is always allowed! 💪</div>
+      </div>
+
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases the saved game, your record and settings. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center flex-wrap">
+          <span class="text-xs font-black text-rose-600">Really erase it all?</span>
+          <button class="btn btn-red !py-1.5 !px-3 text-xs" @click="doReset">Yes</button>
+          <button class="btn btn-white !py-1.5 !px-3 text-xs" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">Games saved automatically 💾 · v1.1</div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="max-w-3xl md:max-w-5xl mx-auto p-4 md:p-6 flex flex-col gap-3 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold ink-text drop-shadow">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="ink-text font-bold text-sm text-center -mt-1 drop-shadow">You are the boss of this chess game! Move a slider, then press Play and feel the difference.</p>
+
+    <div class="grid md:grid-cols-2 gap-3 items-start">
+      <!-- sliders + theme picker -->
+      <div class="panel !p-4 flex flex-col gap-3">
+        <div v-for="d in LAB_DEFS" :key="d.key">
+          <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+            <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+            <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">{{d.unit}}{{profile.lab[d.key]}}</span>
+          </div>
+          <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+                 :value="profile.lab[d.key]" @input="setLab(d.key,$event)">
+          <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>{{d.unit}}{{d.min}}</span><span class="text-slate-500">normal = {{d.unit}}{{d.def}}</span><span>{{d.unit}}{{d.max}}</span></div>
+        </div>
+        <div>
+          <div class="font-black text-slate-700 text-sm mb-2">🎨 Board theme <span class="font-bold text-slate-400 text-xs">· recolors the whole page, right now — even mid-game!</span></div>
+          <div class="flex gap-2">
+            <button v-for="t in LAB_THEMES" :key="t.key" class="btn flex-1 !py-2 text-sm whitespace-nowrap"
+                    :class="profile.lab.theme===t.key?'btn-purple':'btn-white'" @click="pickTheme(t.key)">{{t.icon}} {{t.name}}</button>
+          </div>
+        </div>
+        <button class="btn btn-red text-sm self-start" @click="resetLab">↩️ Reset to normal</button>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <!-- lesson cards -->
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">📦</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Variables</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">A variable is a box with a name and a number inside. <b>thinkTime</b> says how long your partner may think — slide it down and 🐱 Kitten pounces in a blink!</p>
+          </div>
+        </div>
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">🔀</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Conditions (if)</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">The computer asks: <b>if</b> <b>aiSkill</b> is higher, look deeper at the board; <b>if</b> it's lower, play gentler. One little number changes every decision!</p>
+          </div>
+        </div>
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">🧠</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Functions</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">The 💡 Hint button calls the <b>same thinking function</b> the computer uses — <b>hintBrain</b> just tells it how hard to think for you. Functions are reusable super-tools!</p>
+          </div>
+        </div>
+
+        <!-- mini code box -->
+        <div class="panel !p-4 flex flex-col gap-2">
+          <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+          <p class="text-xs font-bold text-slate-500">Try <b>thinkTime = 0.5</b>, or <b>hintBrain = 2 + 2</b>, or even <b>aiSkill = hintBrain - 3</b> — then press Enter.</p>
+          <div class="flex gap-2">
+            <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+                   class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+                   placeholder="thinkTime = 0.5">
+            <button class="btn btn-green !py-2 text-sm" @click="runLabCode">Run ▶</button>
+          </div>
+          <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+          <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+'use strict';
+/* ENGINE-BEGIN */
+/* ============================================================
+   PAW CHESS ENGINE — pure functions, no DOM, no storage.
+   Squares 0..63, index 0 = a8 (top-left), 63 = h1.
+   Pieces: 'wP','bK', etc. State:
+   { board:[64], turn:'w'|'b', castling:{wk,wq,bk,bq},
+     ep:-1..63 (en-passant target), halfmove:0.., fullmove:1.. }
+   ============================================================ */
+const FILES = 'abcdefgh';
+const FILLED = { P:'♟', N:'♞', B:'♝', R:'♜', Q:'♛', K:'♚' };
+const OUTLINE = { P:'♙', N:'♘', B:'♗', R:'♖', Q:'♕', K:'♔' };
+const VAL = { P:100, N:320, B:330, R:500, Q:950, K:0 };
+
+function sqName(i){ return FILES[i&7] + (8-(i>>3)); }
+function inside(r,f){ return r>=0 && r<8 && f>=0 && f<8; }
+
+const N_OFF = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const K_OFF = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const R_DIR = [[-1,0],[1,0],[0,-1],[0,1]];
+const B_DIR = [[-1,-1],[-1,1],[1,-1],[1,1]];
+const Q_DIR = R_DIR.concat(B_DIR);
+
+function newGame(){
+  const board = new Array(64).fill(null);
+  const back = ['R','N','B','Q','K','B','N','R'];
+  for(let f=0; f<8; f++){
+    board[f] = 'b'+back[f];
+    board[8+f] = 'bP';
+    board[48+f] = 'wP';
+    board[56+f] = 'w'+back[f];
+  }
+  return { board, turn:'w', castling:{wk:true,wq:true,bk:true,bq:true}, ep:-1, halfmove:0, fullmove:1 };
+}
+
+/* Is square sq attacked by color `by`? */
+function isAttacked(board, sq, by){
+  const r = sq>>3, f = sq&7;
+  const pr = by==='w' ? r+1 : r-1;          // pawn rank that attacks us
+  for(let df=-1; df<=1; df+=2){
+    if(inside(pr, f+df) && board[pr*8+f+df]===by+'P') return true;
+  }
+  for(let k=0;k<8;k++){
+    const rr=r+N_OFF[k][0], ff=f+N_OFF[k][1];
+    if(inside(rr,ff) && board[rr*8+ff]===by+'N') return true;
+  }
+  for(let k=0;k<8;k++){
+    const rr=r+K_OFF[k][0], ff=f+K_OFF[k][1];
+    if(inside(rr,ff) && board[rr*8+ff]===by+'K') return true;
+  }
+  for(let k=0;k<4;k++){
+    let rr=r+R_DIR[k][0], ff=f+R_DIR[k][1];
+    while(inside(rr,ff)){
+      const q = board[rr*8+ff];
+      if(q){ if(q[0]===by && (q[1]==='R'||q[1]==='Q')) return true; break; }
+      rr+=R_DIR[k][0]; ff+=R_DIR[k][1];
+    }
+  }
+  for(let k=0;k<4;k++){
+    let rr=r+B_DIR[k][0], ff=f+B_DIR[k][1];
+    while(inside(rr,ff)){
+      const q = board[rr*8+ff];
+      if(q){ if(q[0]===by && (q[1]==='B'||q[1]==='Q')) return true; break; }
+      rr+=B_DIR[k][0]; ff+=B_DIR[k][1];
+    }
+  }
+  return false;
+}
+
+function kingSq(board, color){
+  const k = color+'K';
+  for(let i=0;i<64;i++) if(board[i]===k) return i;
+  return -1;
+}
+
+/* Pseudo-legal moves for `color`. Castling is generated only when fully
+   legal except the destination-check (generic legality filter handles that). */
+function genPseudo(board, color, castling, ep){
+  const ms = [];
+  const opp = color==='w' ? 'b' : 'w';
+  const dir = color==='w' ? -1 : 1;           // pawn forward direction (rank delta)
+  const promoRank = color==='w' ? 0 : 7;
+  const startRank = color==='w' ? 6 : 1;
+  for(let i=0;i<64;i++){
+    const p = board[i];
+    if(!p || p[0]!==color) continue;
+    const t = p[1], r = i>>3, f = i&7;
+    if(t==='P'){
+      const r1 = r+dir;
+      if(r1>=0 && r1<8){
+        if(!board[r1*8+f]){
+          if(r1===promoRank){ for(let q=0;q<4;q++) ms.push({from:i,to:r1*8+f,promo:'QRBN'[q]}); }
+          else ms.push({from:i,to:r1*8+f});
+          if(r===startRank){
+            const r2 = r+2*dir;
+            if(!board[r2*8+f]) ms.push({from:i,to:r2*8+f,flag:'double'});
+          }
+        }
+        for(let df=-1; df<=1; df+=2){
+          const ff = f+df;
+          if(ff<0||ff>7) continue;
+          const j = r1*8+ff, q = board[j];
+          if(q && q[0]===opp){
+            if(r1===promoRank){ for(let w=0;w<4;w++) ms.push({from:i,to:j,promo:'QRBN'[w]}); }
+            else ms.push({from:i,to:j});
+          } else if(ep>=0 && j===ep){
+            ms.push({from:i,to:j,flag:'ep'});
+          }
+        }
+      }
+    } else if(t==='N' || t==='K'){
+      const offs = t==='N' ? N_OFF : K_OFF;
+      for(let k=0;k<8;k++){
+        const rr=r+offs[k][0], ff=f+offs[k][1];
+        if(!inside(rr,ff)) continue;
+        const j = rr*8+ff, q = board[j];
+        if(!q || q[0]===opp) ms.push({from:i,to:j});
+      }
+    } else {
+      const dirs = t==='R' ? R_DIR : t==='B' ? B_DIR : Q_DIR;
+      for(let k=0;k<dirs.length;k++){
+        let rr=r+dirs[k][0], ff=f+dirs[k][1];
+        while(inside(rr,ff)){
+          const j = rr*8+ff, q = board[j];
+          if(!q){ ms.push({from:i,to:j}); }
+          else { if(q[0]===opp) ms.push({from:i,to:j}); break; }
+          rr+=dirs[k][0]; ff+=dirs[k][1];
+        }
+      }
+    }
+  }
+  if(castling){
+    const r0 = color==='w' ? 7 : 0;
+    const kSq = r0*8+4;
+    if(board[kSq]===color+'K' && !isAttacked(board,kSq,opp)){
+      if((color==='w'?castling.wk:castling.bk) &&
+         board[r0*8+7]===color+'R' && !board[r0*8+5] && !board[r0*8+6] &&
+         !isAttacked(board,r0*8+5,opp)){
+        ms.push({from:kSq,to:r0*8+6,flag:'ck'});
+      }
+      if((color==='w'?castling.wq:castling.bq) &&
+         board[r0*8]===color+'R' && !board[r0*8+1] && !board[r0*8+2] && !board[r0*8+3] &&
+         !isAttacked(board,r0*8+3,opp)){
+        ms.push({from:kSq,to:r0*8+2,flag:'cq'});
+      }
+    }
+  }
+  return ms;
+}
+
+/* Pure: apply a move, return the new state. */
+function applyMove(st, m){
+  const board = st.board.slice();
+  const p = board[m.from];
+  const c = p ? p[0] : st.turn;
+  const t = p ? p[1] : 'P';
+  const castling = { wk:st.castling.wk, wq:st.castling.wq, bk:st.castling.bk, bq:st.castling.bq };
+  let ep = -1;
+  let half = st.halfmove + 1;
+  const isCap = m.flag==='ep' || !!board[m.to];
+  if(t==='P' || isCap) half = 0;
+  board[m.from] = null;
+  if(m.flag==='ep') board[m.to + (c==='w'?8:-8)] = null;
+  board[m.to] = m.promo ? (c+m.promo) : p;
+  if(m.flag==='double') ep = (m.from + m.to) >> 1;
+  if(m.flag==='ck'){ if(c==='w'){ board[63]=null; board[61]='wR'; } else { board[7]=null; board[5]='bR'; } }
+  else if(m.flag==='cq'){ if(c==='w'){ board[56]=null; board[59]='wR'; } else { board[0]=null; board[3]='bR'; } }
+  if(t==='K'){ if(c==='w'){ castling.wk=false; castling.wq=false; } else { castling.bk=false; castling.bq=false; } }
+  if(m.from===63 || m.to===63) castling.wk=false;
+  if(m.from===56 || m.to===56) castling.wq=false;
+  if(m.from===7  || m.to===7 ) castling.bk=false;
+  if(m.from===0  || m.to===0 ) castling.bq=false;
+  return { board, turn: c==='w'?'b':'w', castling, ep, halfmove:half, fullmove: st.fullmove + (c==='b'?1:0) };
+}
+
+function legalMoves(st){
+  const out = [];
+  const opp = st.turn==='w' ? 'b' : 'w';
+  const pseudo = genPseudo(st.board, st.turn, st.castling, st.ep);
+  for(let i=0;i<pseudo.length;i++){
+    const ns = applyMove(st, pseudo[i]);
+    const k = kingSq(ns.board, st.turn);
+    if(k<0 || !isAttacked(ns.board, k, opp)) out.push(pseudo[i]);
+  }
+  return out;
+}
+
+function inCheck(st){
+  const k = kingSq(st.board, st.turn);
+  return k>=0 && isAttacked(st.board, k, st.turn==='w'?'b':'w');
+}
+
+/* Draw when no checkmate is possible with the remaining men. */
+function insufficientMaterial(board){
+  const extra = [];
+  const bColors = [];
+  for(let i=0;i<64;i++){
+    const p = board[i];
+    if(!p) continue;
+    if(p[1]==='K') continue;
+    if(p[1]==='P' || p[1]==='R' || p[1]==='Q') return false;
+    extra.push(p);
+    if(p[1]==='B') bColors.push(((i>>3)+(i&7)) & 1);
+  }
+  if(extra.length===0) return true;                     // K vs K
+  if(extra.length===1) return true;                     // K+minor vs K
+  if(extra.length===2 && extra[0][1]==='B' && extra[1][1]==='B' && bColors[0]===bColors[1]) return true; // same-color bishops only
+  return false;
+}
+
+/* FIDE-style position key (board, turn, castling, ep-when-capturable). */
+function positionKey(st){
+  let s = '';
+  for(let i=0;i<64;i++){ const p = st.board[i]; s += p ? p : '--'; }
+  s += st.turn;
+  s += (st.castling.wk?'K':'-')+(st.castling.wq?'Q':'-')+(st.castling.bk?'k':'-')+(st.castling.bq?'q':'-');
+  let epTag = '-';
+  if(st.ep>=0){
+    const r = st.ep>>3, f = st.ep&7;
+    const rr = r + (st.turn==='w' ? 1 : -1);  // rank a capturing pawn must stand on
+    for(let df=-1; df<=1; df+=2){
+      const ff = f+df;
+      if(ff>=0 && ff<8 && rr>=0 && rr<8 && st.board[rr*8+ff]===st.turn+'P'){ epTag = st.ep; break; }
+    }
+  }
+  s += epTag;
+  return s;
+}
+
+/* Full game status. `states` = whole history INCLUDING st (for threefold). */
+function statusOf(st, states){
+  const check = inCheck(st);
+  const moves = legalMoves(st);
+  if(moves.length===0){
+    return check
+      ? { over:true, result: st.turn==='w'?'b':'w', reason:'checkmate', check:true }
+      : { over:true, result:'draw', reason:'stalemate', check:false };
+  }
+  if(insufficientMaterial(st.board)) return { over:true, result:'draw', reason:'material', check };
+  if(st.halfmove>=100) return { over:true, result:'draw', reason:'fifty', check };
+  if(states){
+    const key = positionKey(st);
+    let n = 0;
+    for(let i=0;i<states.length;i++){ if(positionKey(states[i])===key) n++; }
+    if(n>=3) return { over:true, result:'draw', reason:'repetition', check };
+  }
+  return { over:false, result:null, reason:null, check };
+}
+
+/* Kid-friendly figurine notation: ♘f3, ♞xf6+, O-O, exd5, e8=♕, O-O#. */
+function notate(prev, m, status){
+  const p = prev.board[m.from];
+  const t = p ? p[1] : 'P';
+  const c = p ? p[0] : prev.turn;
+  let s;
+  if(m.flag==='ck') s = 'O-O';
+  else if(m.flag==='cq') s = 'O-O-O';
+  else {
+    const isCap = m.flag==='ep' || !!prev.board[m.to];
+    if(t==='P'){
+      s = isCap ? (FILES[m.from&7]+'x'+sqName(m.to)) : sqName(m.to);
+      if(m.promo) s += '='+(c==='w'?OUTLINE:FILLED)[m.promo];
+    } else {
+      let dis = '';
+      const others = legalMoves(prev).filter(function(x){
+        return x.to===m.to && x.from!==m.from && prev.board[x.from]===c+t;
+      });
+      if(others.length){
+        const sameFile = others.some(function(x){ return (x.from&7)===(m.from&7); });
+        const sameRank = others.some(function(x){ return (x.from>>3)===(m.from>>3); });
+        if(!sameFile) dis = FILES[m.from&7];
+        else if(!sameRank) dis = ''+(8-(m.from>>3));
+        else dis = sqName(m.from);
+      }
+      s = (c==='w'?OUTLINE:FILLED)[t]+dis+(isCap?'x':'')+sqName(m.to);
+    }
+  }
+  if(status && status.over && status.reason==='checkmate') s += '#';
+  else if(status && status.check) s += '+';
+  return s;
+}
+
+/* --- save serialization --- */
+function serState(st){
+  return { b: st.board.map(function(x){ return x||''; }), t: st.turn,
+           c: (st.castling.wk?1:0)|(st.castling.wq?2:0)|(st.castling.bk?4:0)|(st.castling.bq?8:0),
+           e: st.ep, h: st.halfmove, f: st.fullmove };
+}
+function desState(o){
+  if(!o || !Array.isArray(o.b) || o.b.length!==64) throw new Error('bad save');
+  const board = o.b.map(function(x){
+    return (typeof x==='string' && /^[wb][PNBRQK]$/.test(x)) ? x : null;
+  });
+  const c = o.c|0;
+  return { board, turn: o.t==='b'?'b':'w',
+           castling:{ wk:!!(c&1), wq:!!(c&2), bk:!!(c&4), bq:!!(c&8) },
+           ep: (typeof o.e==='number' && o.e>=-1 && o.e<64) ? o.e : -1,
+           halfmove: Math.max(0, o.h|0), fullmove: Math.max(1, o.f|0) };
+}
+
+/* --- FEN (used by the test suite) --- */
+function parseFEN(fen){
+  const parts = fen.trim().split(/\s+/);
+  const board = new Array(64).fill(null);
+  const map = { p:'P', n:'N', b:'B', r:'R', q:'Q', k:'K' };
+  let r=0, f=0;
+  for(const ch of parts[0]){
+    if(ch==='/'){ r++; f=0; }
+    else if(ch>='1' && ch<='8'){ f += +ch; }
+    else { board[r*8+f] = (ch===ch.toUpperCase()?'w':'b') + map[ch.toLowerCase()]; f++; }
+  }
+  const cast = { wk:false, wq:false, bk:false, bq:false };
+  if(parts[2] && parts[2]!=='-'){
+    if(parts[2].indexOf('K')>=0) cast.wk=true;
+    if(parts[2].indexOf('Q')>=0) cast.wq=true;
+    if(parts[2].indexOf('k')>=0) cast.bk=true;
+    if(parts[2].indexOf('q')>=0) cast.bq=true;
+  }
+  let ep = -1;
+  if(parts[3] && parts[3]!=='-') ep = FILES.indexOf(parts[3][0]) + (8-+parts[3][1])*8;
+  return { board, turn: parts[1]==='b'?'b':'w', castling:cast, ep,
+           halfmove: +(parts[4]||0), fullmove: +(parts[5]||1) };
+}
+
+/* ============================================================
+   EVALUATION + AI (minimax, alpha-beta, from White's perspective)
+   ============================================================ */
+const PST = {
+  P:[  0,  0,  0,  0,  0,  0,  0,  0,
+      50, 50, 50, 50, 50, 50, 50, 50,
+      10, 10, 20, 30, 30, 20, 10, 10,
+       5,  5, 10, 25, 25, 10,  5,  5,
+       0,  0,  0, 20, 20,  0,  0,  0,
+       5, -5,-10,  0,  0,-10, -5,  5,
+       5, 10, 10,-20,-20, 10, 10,  5,
+       0,  0,  0,  0,  0,  0,  0,  0 ],
+  N:[ -50,-40,-30,-30,-30,-30,-40,-50,
+      -40,-20,  0,  0,  0,  0,-20,-40,
+      -30,  0, 10, 15, 15, 10,  0,-30,
+      -30,  5, 15, 20, 20, 15,  5,-30,
+      -30,  0, 15, 20, 20, 15,  0,-30,
+      -30,  5, 10, 15, 15, 10,  5,-30,
+      -40,-20,  0,  5,  5,  0,-20,-40,
+      -50,-40,-30,-30,-30,-30,-40,-50 ],
+  B:[ -20,-10,-10,-10,-10,-10,-10,-20,
+      -10,  0,  0,  0,  0,  0,  0,-10,
+      -10,  0,  5, 10, 10,  5,  0,-10,
+      -10,  5,  5, 10, 10,  5,  5,-10,
+      -10,  0, 10, 10, 10, 10,  0,-10,
+      -10, 10, 10, 10, 10, 10, 10,-10,
+      -10,  5,  0,  0,  0,  0,  5,-10,
+      -20,-10,-10,-10,-10,-10,-10,-20 ],
+  R:[   0,  0,  0,  0,  0,  0,  0,  0,
+        5, 10, 10, 10, 10, 10, 10,  5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+       -5,  0,  0,  0,  0,  0,  0, -5,
+        0,  0,  0,  5,  5,  0,  0,  0 ],
+  Q:[ -20,-10,-10, -5, -5,-10,-10,-20,
+      -10,  0,  0,  0,  0,  0,  0,-10,
+      -10,  0,  5,  5,  5,  5,  0,-10,
+       -5,  0,  5,  5,  5,  5,  0, -5,
+        0,  0,  5,  5,  5,  5,  0, -5,
+      -10,  5,  5,  5,  5,  5,  0,-10,
+      -10,  0,  5,  0,  0,  0,  0,-10,
+      -20,-10,-10, -5, -5,-10,-10,-20 ],
+  K:[ -30,-40,-40,-50,-50,-40,-40,-30,
+      -30,-40,-40,-50,-50,-40,-40,-30,
+      -30,-40,-40,-50,-50,-40,-40,-30,
+      -30,-40,-40,-50,-50,-40,-40,-30,
+      -20,-30,-30,-40,-40,-30,-30,-20,
+      -10,-20,-20,-20,-20,-20,-20,-10,
+       20, 20,  0,  0,  0,  0, 20, 20,
+       20, 30, 10,  0,  0, 10, 30, 20 ]
+};
+
+function evaluate(st){
+  const b = st.board;
+  let score = 0;
+  for(let i=0;i<64;i++){
+    const p = b[i];
+    if(!p) continue;
+    const t = p[1];
+    if(p[0]==='w') score += VAL[t] + PST[t][i];
+    else score -= VAL[t] + PST[t][i^56];
+  }
+  // light mobility term (pseudo-move counts)
+  score += 3*(genPseudo(b,'w',null,-1).length - genPseudo(b,'b',null,-1).length);
+  return score;
+}
+
+const MATE = 100000;
+const ABORT = { abort:true };
+let AI_NODES = 0;
+
+function orderMoves(ms, board){
+  for(let i=0;i<ms.length;i++){
+    const m = ms[i];
+    const victim = m.flag==='ep' ? 'P' : (board[m.to] ? board[m.to][1] : null);
+    m._s = victim ? (1000 + VAL[victim]*10 - VAL[board[m.from][1]]) : (m.promo ? 900 : 0);
+  }
+  ms.sort(function(a,b){ return b._s - a._s; });
+}
+
+function negamax(st, depth, alpha, beta, t0, timeCap, nodeCap, ply){
+  AI_NODES++;
+  if((AI_NODES & 511)===0 && (Date.now()-t0 > timeCap || AI_NODES > nodeCap)) throw ABORT;
+  if(st.halfmove>=100) return 0;
+  const check = inCheck(st);
+  if(depth<=0){
+    if(check && legalMoves(st).length===0) return -(MATE-ply);
+    return (st.turn==='w'?1:-1) * evaluate(st);
+  }
+  const ms = legalMoves(st);
+  if(ms.length===0) return check ? -(MATE-ply) : 0;
+  orderMoves(ms, st.board);
+  let best = -Infinity;
+  for(let i=0;i<ms.length;i++){
+    const v = -negamax(applyMove(st, ms[i]), depth-1, -beta, -alpha, t0, timeCap, nodeCap, ply+1);
+    if(v>best){
+      best = v;
+      if(v>alpha) alpha = v;
+      if(alpha>=beta) break;
+    }
+  }
+  return best;
+}
+
+/* Returns a LEGAL move for the side to move (or null if none).
+   Iterative deepening with time/node caps; `jitter` adds playful randomness
+   among near-equal moves (Kitten). Never throws, never illegal. */
+function aiChooseMove(st, depth, opts){
+  opts = opts || {};
+  const t0 = Date.now();
+  const timeCap = opts.timeCap || 1300;
+  const nodeCap = opts.nodeCap || 150000;
+  const rootMoves = legalMoves(st);
+  if(rootMoves.length===0) return null;
+  orderMoves(rootMoves, st.board);
+  let bestMove = rootMoves[0];
+  let lastAll = [{ move: rootMoves[0], score: -Infinity }];
+  let bestScore = -Infinity;
+  for(let d=1; d<=depth; d++){
+    let alpha = -Infinity, curBest = null, curScore = -Infinity;
+    const all = [];
+    try {
+      for(let i=0;i<rootMoves.length;i++){
+        const m = rootMoves[i];
+        const v = -negamax(applyMove(st, m), d-1, -Infinity, -alpha, t0, timeCap, nodeCap, 1);
+        all.push({ move:m, score:v });
+        if(v>curScore){ curScore = v; curBest = m; }
+        if(v>alpha) alpha = v;
+      }
+    } catch(e){
+      if(e!==ABORT) throw e;
+      if(curBest){ bestMove = curBest; lastAll = all; bestScore = curScore; }
+      break;
+    }
+    bestMove = curBest; lastAll = all; bestScore = curScore;
+    if(curScore > MATE-1000) break; // found a forced mate
+  }
+  if(opts.jitter && lastAll.length>1){
+    let hi = -Infinity;
+    for(const a of lastAll) if(a.score>hi) hi = a.score;
+    const pool = lastAll.filter(function(a){ return a.score >= hi - opts.jitter; });
+    if(pool.length) return pool[(Math.random()*pool.length)|0].move;
+  }
+  return bestMove;
+}
+
+/* Perft — node counter used by the test suite. */
+function perft(st, d){
+  if(d===0) return 1;
+  const ms = legalMoves(st);
+  if(d===1) return ms.length;
+  let n = 0;
+  for(let i=0;i<ms.length;i++) n += perft(applyMove(st, ms[i]), d-1);
+  return n;
+}
+/* ENGINE-END */
+</script>
+<script>
+'use strict';
+/* ============================================================
+   PAW CHESS APP (Vue 3, Options API)
+   ============================================================ */
+const SAVE_KEY = 'pawChessSave1';
+const LEVELS = {
+  kitten: { name:'Kitten',    emoji:'🐱', depth:1, blurb:'Loves to pounce — perfect for first games!', opts:{ jitter:60, timeCap:800,  nodeCap:40000 } },
+  friend: { name:'Friend',    emoji:'🐶', depth:2, blurb:'Knows the moves and watches for tricks!',    opts:{ timeCap:1100, nodeCap:90000 } },
+  owl:    { name:'Wise Owl',  emoji:'🦉', depth:3, blurb:'Thinks ahead — a real challenge!',           opts:{ timeCap:1300, nodeCap:150000 } }
+};
+const START_COUNTS = { Q:1, R:2, B:2, N:2, P:8 };
+const PROMO_NAME = { Q:'Queen 👑', R:'Rook 🏰', B:'Bishop ⛪', N:'Knight 🐴' };
+
+/* ============ Game Master Lab ============
+   Sliders bound to real constants: values live in profile.lab and are
+   applied live where the AI thinks (scheduleAI/askHint) and where pieces
+   hop (the board template). 1 = normal. */
+const LAB_DEFS = [
+  {key:'thinkTime', name:'Thinking Time',   icon:'🤔', min:0.5, max:2,   step:0.1, def:1,    unit:'×', hint:'how long your partner may think (low = quick & easy)'},
+  {key:'aiSkill',   name:'Partner Skill',   icon:'🧠', min:-1,  max:1,   step:1,   def:0,    unit:'',  hint:'how deep the computer looks (−1 gentler · +1 tougher)'},
+  {key:'hintBrain', name:'Hint Brainpower', icon:'💡', min:1,   max:4,   step:1,   def:2,    unit:'',  hint:'how hard the Hint button thinks for you'},
+  {key:'pieceHop',  name:'Piece Hop',       icon:'🐇', min:0,   max:0.8, step:0.1, def:0.35, unit:'s', hint:'the happy hop of a piece that just moved (0 = instant)'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_THEMES = [
+  {key:'meadow', icon:'🌼', name:'Meadow'},
+  {key:'berry',  icon:'🍓', name:'Berry'},
+  {key:'ocean',  icon:'🌊', name:'Ocean'}
+];
+function defaultLab(){
+  const lab = { theme:'meadow' };
+  for(const d of LAB_DEFS) lab[d.key] = d.def;
+  return lab;
+}
+/* Merge a saved/partial lab over the defaults, clamping every number to
+   its allowed range so old or hand-edited saves can never break the game. */
+function sanitizeLab(l){
+  const lab = defaultLab();
+  if(l && typeof l==='object'){
+    if(typeof l.theme==='string' && LAB_THEMES.some(t=>t.key===l.theme)) lab.theme = l.theme;
+    for(const d of LAB_DEFS){
+      const v = parseFloat(l[d.key]);
+      if(isFinite(v)) lab[d.key] = Math.max(d.min, Math.min(d.max, Math.round(v*100)/100));
+    }
+  }
+  return lab;
+}
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click':   this.tone(500,650,0.06,'sine',0.07); break;
+      case 'select':  this.tone(660,880,0.05,'sine',0.05); break;
+      case 'move':    this.tone(420,180,0.07,'triangle',0.1); break;
+      case 'capture': this.tone(230,110,0.13,'triangle',0.14); this.tone(150,90,0.1,'sine',0.08,0.02); break;
+      case 'castle':  this.tone(420,180,0.06,'triangle',0.09); this.tone(420,180,0.06,'triangle',0.09,0.11); break;
+      case 'check':   this.tone(740,740,0.09,'square',0.05); this.tone(990,990,0.11,'square',0.05,0.11); break;
+      case 'promote': [620,830,1050].forEach((f,i)=>this.tone(f,f*1.05,0.1,'triangle',0.1,i*0.08)); break;
+      case 'hint':    [520,700,880].forEach((f,i)=>this.tone(f,f,0.08,'sine',0.07,i*0.07)); break;
+      case 'deny':    this.tone(200,150,0.14,'sine',0.06); break;
+      case 'win':     [523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.16,'triangle',0.13,i*0.13)); break;
+      case 'draw':    [440,440,392].forEach((f,i)=>this.tone(f,f,0.14,'sine',0.09,i*0.14)); break;
+      case 'over':    [392,330,262].forEach((f,i)=>this.tone(f,f*0.98,0.18,'sine',0.08,i*0.15)); break;
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============ profile / save ============ */
+function defaultProfile(){
+  return {
+    sound:true, showLegal:true, flip2p:true,
+    records:{ kitten:{w:0,d:0,l:0}, friend:{w:0,d:0,l:0}, owl:{w:0,d:0,l:0} },
+    savedGame:null,
+    lab:defaultLab()
+  };
+}
+function loadProfile(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p = JSON.parse(raw), d = defaultProfile();
+      const out = Object.assign(d, p);
+      out.records = { kitten:{w:0,d:0,l:0}, friend:{w:0,d:0,l:0}, owl:{w:0,d:0,l:0} };
+      if(p && p.records){
+        for(const k of ['kitten','friend','owl']){
+          if(p.records[k]) out.records[k] = { w:+p.records[k].w||0, d:+p.records[k].d||0, l:+p.records[k].l||0 };
+        }
+      }
+      out.sound = !!out.sound; out.showLegal = !!out.showLegal; out.flip2p = !!out.flip2p;
+      out.lab = sanitizeLab(p && p.lab);
+      return out;
+    }
+  }catch(e){}
+  return defaultProfile();
+}
+
+const app = Vue.createApp({
+  data(){
+    return {
+      FILLED, LEVELS, LAB_DEFS, LAB_THEMES,
+      screen:'menu',
+      profile: loadProfile(),
+      game:null,
+      selected:null,
+      hintSquares:null,
+      promoOpen:null,
+      promoChoices:['Q','R','B','N'],
+      promoName:PROMO_NAME,
+      paused:false,
+      toasts:[], toastSeq:0,
+      poofs:[], poofSeq:0, shakeSq:-1,
+      confetti:[],
+      resetArmed:false, startArmed:false,
+      labCode:'', labMsg:'', labMsgOk:false, labReturn:'menu',
+      ngMode:'ai', ngLevel:'kitten', ngSide:'w'
+    };
+  },
+  computed:{
+    cur(){
+      return this.game ? this.game.states[this.game.states.length-1] : null;
+    },
+    aiBusy(){ return !!this.game && !!this.game.aiBusy; },
+    boardFlipped(){
+      const g = this.game;
+      if(!g) return false;
+      if(g.mode==='ai') return g.playerColor==='b';
+      return this.profile.flip2p && this.cur.turn==='b';
+    },
+    topColor(){ return this.boardFlipped ? 'w' : 'b'; },
+    bottomColor(){ return this.boardFlipped ? 'b' : 'w'; },
+    squares(){
+      const out = [];
+      for(let vr=0; vr<8; vr++){
+        for(let vf=0; vf<8; vf++){
+          out.push((this.boardFlipped ? 7-vr : vr)*8 + (this.boardFlipped ? 7-vf : vf));
+        }
+      }
+      return out;
+    },
+    selectedMoves(){
+      if(this.selected==null || !this.game || this.game.over) return [];
+      const sel = this.selected;
+      return legalMoves(this.cur).filter(function(m){ return m.from===sel; });
+    },
+    targetMap(){
+      const map = {};
+      for(const m of this.selectedMoves){
+        if(!map[m.to]) map[m.to] = { cap: m.flag==='ep' || !!this.cur.board[m.to] };
+      }
+      return map;
+    },
+    showDots(){ return this.profile.showLegal && this.selected!=null && !this.game.over; },
+    checkSq(){
+      if(!this.game || this.game.over) return -1;
+      const st = this.cur;
+      if(!inCheck(st)) return -1;
+      return kingSq(st.board, st.turn);
+    },
+    isPlayerTurn(){
+      const g = this.game;
+      if(!g || g.over) return false;
+      if(g.mode==='2p') return !this.paused && !this.promoOpen;
+      return !g.aiBusy && !this.paused && !this.promoOpen && this.cur.turn===g.playerColor;
+    },
+    canUndo(){
+      const g = this.game;
+      if(!g || g.aiBusy || this.paused || this.promoOpen) return false;
+      if(g.states.length<2) return false;
+      if(g.mode==='ai'){
+        const top = g.states[g.states.length-1].turn;
+        return top===g.playerColor ? g.states.length>=3 : true;
+      }
+      return true;
+    },
+    canHint(){
+      return this.isPlayerTurn && !this.game.over;
+    },
+    moveRows(){
+      const g = this.game;
+      if(!g) return [];
+      const rows = [];
+      for(let i=0;i<g.notes.length;i+=2){
+        rows.push({ n:(i/2)+1, w:g.notes[i], b:g.notes[i+1]||'' });
+      }
+      return rows;
+    },
+    modeLabel(){
+      const g = this.game;
+      if(!g) return '';
+      if(g.mode==='2p') return '👥 Two players';
+      const lv = LEVELS[g.level];
+      return 'vs '+lv.emoji+' '+lv.name+' · you are '+(g.playerColor==='w'?'☀️ White':'🌙 Black');
+    },
+    inProgressSaved(){
+      const s = this.profile.savedGame;
+      return !!(s && Array.isArray(s.states) && s.states.length>1);
+    },
+    savedDesc(){
+      const s = this.profile.savedGame;
+      if(!s) return '';
+      const who = s.mode==='2p' ? '👥 two players' : (LEVELS[s.level] ? 'vs '+LEVELS[s.level].emoji+' '+LEVELS[s.level].name : 'vs computer');
+      return who+' · move '+Math.max(1,(s.states?s.states.length-1:0))+' · keep going!';
+    },
+    overInfo(){
+      const g = this.game;
+      if(!g || !g.over) return { emoji:'♟️', title:'', sub:'', colorClass:'text-slate-700' };
+      const o = g.over;
+      if(o.reason==='checkmate'){
+        if(g.mode==='ai'){
+          const lv = LEVELS[g.level];
+          if(o.result===g.playerColor){
+            return { emoji:'🎉', title:'Checkmate! You win!', sub:'You beat '+lv.name+'! Amazing chess! 🏆', colorClass:'text-emerald-600' };
+          }
+          return { emoji:'🤝', title:'Good game!', sub:lv.emoji+' '+lv.name+' wins this one — try again! 💪', colorClass:'text-amber-600' };
+        }
+        return { emoji:'🎉', title:'Checkmate!', sub:(o.result==='w'?'☀️ White':'🌙 Black')+' wins — great playing both!', colorClass:'text-emerald-600' };
+      }
+      const subs = {
+        stalemate:'No moves left and nobody in check — a draw! 🤝',
+        material:'Only kings and friends left — nobody can win. Draw! 🤝',
+        fifty:'50 quiet moves in a row — the kings agree: draw! 🤝',
+        repetition:'Same position three times — you both know it! Draw! 🤝'
+      };
+      return { emoji:'🤝', title:"It's a draw!", sub:subs[o.reason]||'Draw!', colorClass:'text-sky-600' };
+    },
+    matAdv(){
+      const st = this.cur;
+      if(!st) return 0;
+      let w=0, b=0;
+      for(let i=0;i<64;i++){
+        const p = st.board[i];
+        if(!p) continue;
+        if(p[0]==='w') w += VAL[p[1]]; else b += VAL[p[1]];
+      }
+      return Math.round((w-b)/100);
+    },
+    labReadout(){
+      const l = this.profile.lab;
+      const running = this.game && !this.game.over;
+      const lv = LEVELS[running ? this.game.level : this.ngLevel] || LEVELS.kitten;
+      const depth = Math.max(1, Math.min(4, lv.depth + (l.aiSkill|0)));
+      return 'thinkTime ×'+l.thinkTime+' · partner looks '+depth+(depth===1?' move':' moves')+' ahead · hint thinks '+l.hintBrain+' deep · hop '+l.pieceHop+'s';
+    }
+  },
+  methods:{
+    /* ------- navigation ------- */
+    go(screen){ SFX.play('click'); this.screen=screen; },
+    save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(this.profile)); }catch(e){} },
+    pushToast(msg,emoji){
+      const id = ++this.toastSeq;
+      this.toasts.push({ id, msg, emoji:emoji||'🐾' });
+      setTimeout(()=>{ this.toasts = this.toasts.filter(t=>t.id!==id); },2600);
+    },
+
+    /* ------- new game / resume ------- */
+    tryStart(){
+      if(this.inProgressSaved){
+        this.startArmed = true;
+        clearTimeout(this._startT);
+        this._startT = setTimeout(()=>{ this.startArmed=false; },6000);
+        SFX.play('click');
+      } else {
+        this.startNewGame();
+      }
+    },
+    confirmStart(){ this.startArmed=false; this.startNewGame(); },
+    startNewGame(){
+      this.startArmed = false;
+      this.game = {
+        mode:this.ngMode,
+        level:this.ngMode==='ai' ? this.ngLevel : 'kitten',
+        playerColor:this.ngSide,
+        states:[newGame()],
+        notes:[], lasts:[],
+        lastFrom:-1, lastTo:-1,
+        over:null, aiBusy:false
+      };
+      this.selected=null; this.hintSquares=null; this.promoOpen=null; this.paused=false;
+      this.screen='game';
+      SFX.play('click');
+      this.saveGame();
+      if(this.game.mode==='ai' && this.game.playerColor==='b'){
+        this.pushToast(LEVELS[this.game.level].emoji+' '+LEVELS[this.game.level].name+' starts!','');
+        this.scheduleAI();
+      } else {
+        this.pushToast('☀️ White moves first!','');
+      }
+    },
+    resumeGame(){
+      try{
+        const s = this.profile.savedGame;
+        if(!s || !Array.isArray(s.states) || !s.states.length) throw new Error('none');
+        const states = s.states.map(desState);
+        const lasts = Array.isArray(s.lasts) ? s.lasts.filter(function(x){ return x && typeof x.from==='number' && typeof x.to==='number'; }) : [];
+        this.game = {
+          mode: s.mode==='2p' ? '2p' : 'ai',
+          level: LEVELS[s.level] ? s.level : 'kitten',
+          playerColor: s.playerColor==='b' ? 'b' : 'w',
+          states, lasts,
+          notes: Array.isArray(s.notes) ? s.notes.map(String) : [],
+          lastFrom: lasts.length ? lasts[lasts.length-1].from : -1,
+          lastTo: lasts.length ? lasts[lasts.length-1].to : -1,
+          over:null, aiBusy:false
+        };
+        this.selected=null; this.hintSquares=null; this.promoOpen=null; this.paused=false;
+        this.screen='game';
+        SFX.play('click');
+        this.pushToast('Welcome back! ♟️','↩️');
+        this.scrollMoves();
+        if(this.game.mode==='ai' && this.cur.turn!==this.game.playerColor) this.scheduleAI();
+      }catch(e){
+        this.profile.savedGame = null;
+        this.save();
+        this.pushToast('Hmm, that save was scrambled — starting fresh!','🎲');
+      }
+    },
+    rematch(){
+      const g = this.game;
+      if(!g) return;
+      this.ngMode = g.mode;
+      this.ngLevel = g.level;
+      this.ngSide = g.playerColor;
+      this.startNewGame();
+    },
+    goLevels(){ this.paused=false; this.go('newgame'); },
+    quitToMenu(){ this.paused=false; this.game=null; this.go('menu'); },
+
+    /* ------- board rendering helpers ------- */
+    pieceAt(sq){ return this.cur ? this.cur.board[sq] : null; },
+    pieceGlyph(sq){ const p = this.pieceAt(sq); return p ? FILLED[p[1]] : ''; },
+    hopOn(sq){
+      const g = this.game;
+      return !!(g && !g.over && sq===g.lastTo && this.profile.lab.pieceHop>0);
+    },
+    pieceClass(sq){
+      const p = this.pieceAt(sq);
+      return [p && p[0]==='w' ? 'w' : 'b', { hopin: this.hopOn(sq) }];
+    },
+    pieceStyle(sq){ return this.hopOn(sq) ? { animationDuration: this.profile.lab.pieceHop+'s' } : null; },
+    sqLight(sq){ return (((sq>>3)+(sq&7))%2)===0; },
+    sqClass(sq){
+      const g = this.game;
+      return {
+        light: this.sqLight(sq),
+        dark: !this.sqLight(sq),
+        lm: g && (sq===g.lastFrom || sq===g.lastTo),
+        sel: this.selected===sq,
+        chk: this.checkSq===sq,
+        hintSq: this.hintSquares && (sq===this.hintSquares.from || sq===this.hintSquares.to),
+        deny: this.shakeSq===sq
+      };
+    },
+    fileChar(sq){ return FILES[sq&7]; },
+    rankChar(sq){ return ''+(8-(sq>>3)); },
+    poofAt(sq){ return this.poofs.find(p=>p.sq===sq) || null; },
+    addPoof(sq,e){
+      const id = ++this.poofSeq;
+      this.poofs.push({ id, sq, e:e||'💫' });
+      setTimeout(()=>{ this.poofs = this.poofs.filter(p=>p.id!==id); },650);
+    },
+    playerInfo(color){
+      const g = this.game;
+      if(!g) return { emoji:'♟️', name:'' };
+      if(g.mode==='2p') return color==='w' ? { emoji:'☀️', name:'White' } : { emoji:'🌙', name:'Black' };
+      if(color===g.playerColor) return { emoji:'🧒', name:'You' };
+      const lv = LEVELS[g.level];
+      return { emoji:lv.emoji, name:lv.name };
+    },
+    trayFor(color){
+      const st = this.cur;
+      if(!st) return [];
+      const counts = { w:{}, b:{} };
+      for(let i=0;i<64;i++){
+        const p = st.board[i];
+        if(p) counts[p[0]][p[1]] = (counts[p[0]][p[1]]||0)+1;
+      }
+      const enemy = color==='w' ? 'b' : 'w';
+      const out = [];
+      for(const t of ['Q','R','B','N','P']){
+        const miss = Math.max(0, START_COUNTS[t] - (counts[enemy][t]||0));
+        for(let k=0;k<miss;k++) out.push(FILLED[t]);
+      }
+      return out;
+    },
+    advFor(color){
+      const v = color==='w' ? this.matAdv : -this.matAdv;
+      return v>0 ? v : 0;
+    },
+
+    /* ------- interaction ------- */
+    tapSquare(sq){
+      const g = this.game;
+      if(!g || g.over || this.promoOpen || this.paused) return;
+      if(g.mode==='ai' && (g.aiBusy || this.cur.turn!==g.playerColor)) return;
+      const st = this.cur;
+      const pc = st.board[sq];
+      if(this.selected!=null){
+        if(sq===this.selected){ this.selected=null; SFX.play('click'); return; }
+        const list = this.selectedMoves.filter(function(m){ return m.to===sq; });
+        if(list.length){
+          if(list[0].promo){
+            this.promoOpen = { from:list[0].from, to:sq, moves:list, color:st.turn };
+            SFX.play('select');
+          } else {
+            this.doMove(list[0]);
+          }
+          return;
+        }
+        if(pc && pc[0]===st.turn){ this.selected=sq; this.hintSquares=null; SFX.play('select'); return; }
+        this.denyTap(sq);
+        return;
+      }
+      if(pc && pc[0]===st.turn){ this.selected=sq; this.hintSquares=null; SFX.play('select'); }
+      else if(pc){ this.denyTap(sq); }
+    },
+    denyTap(sq){
+      this.shakeSq = sq;
+      clearTimeout(this._shakeT);
+      this._shakeT = setTimeout(()=>{ this.shakeSq=-1; },330);
+      SFX.play('deny');
+    },
+    pickPromo(pr){
+      const po = this.promoOpen;
+      if(!po) return;
+      const mv = po.moves.find(function(m){ return m.promo===pr; });
+      this.promoOpen = null;
+      if(mv) this.doMove(mv);
+    },
+    cancelPromo(){ this.promoOpen=null; this.selected=null; SFX.play('click'); },
+
+    /* ------- the one place a move happens (human or AI) ------- */
+    doMove(m){
+      const g = this.game;
+      if(!g || g.over) return;
+      const prev = this.cur;
+      const ns = applyMove(prev, m);
+      const allStates = g.states.concat([ns]);
+      const status = statusOf(ns, allStates);
+      const note = notate(prev, m, status);
+      g.states.push(ns);
+      g.notes.push(note);
+      g.lasts.push({ from:m.from, to:m.to });
+      g.lastFrom = m.from; g.lastTo = m.to;
+      this.selected = null;
+      this.hintSquares = null;
+      clearTimeout(this._hintT);
+      if(m.flag==='ep' || prev.board[m.to]) this.addPoof(m.to,'💫');
+      if(m.promo) this.addPoof(m.to,'✨');
+      if(status.over){
+        g.over = { result:status.result, reason:status.reason };
+        this.finishGame(status);
+      } else {
+        g.over = null;
+        if(status.check){
+          SFX.play('check');
+          this.pushToast('Check! The king needs help 👑','⚠️');
+        } else if(m.promo){ SFX.play('promote'); this.pushToast('A brand-new '+PROMO_NAME[m.promo]+'!','👑'); }
+        else if(prev.board[m.to] || m.flag==='ep'){ SFX.play('capture'); }
+        else if(m.flag==='ck' || m.flag==='cq'){ SFX.play('castle'); }
+        else { SFX.play('move'); }
+      }
+      this.saveGame();
+      this.scrollMoves();
+      if(!status.over && g.mode==='ai' && ns.turn!==g.playerColor) this.scheduleAI();
+    },
+    scheduleAI(){
+      const g = this.game;
+      if(!g) return;
+      const token = g;
+      g.aiBusy = true;
+      const think = ()=>{
+        if(this.game!==token || !this.game || this.game.over){ return; }
+        if(this.paused){ setTimeout(think, 500); return; }
+        const st = this.cur;
+        if(st.turn===g.playerColor){ g.aiBusy=false; return; }
+        const lv = LEVELS[g.level];
+        const lab = this.profile.lab;
+        const depth = Math.max(1, Math.min(4, lv.depth + (lab.aiSkill|0)));
+        const opts = Object.assign({}, lv.opts);
+        opts.timeCap = Math.round((opts.timeCap||1300) * lab.thinkTime);
+        if(opts.nodeCap) opts.nodeCap = Math.round(opts.nodeCap * lab.thinkTime);
+        let mv = null;
+        try{ mv = aiChooseMove(st, depth, opts); }catch(e){ mv = null; }
+        if(!mv){ // ultra-safe fallback: a random legal move, never illegal, never stuck
+          const ms = legalMoves(st);
+          if(ms.length) mv = ms[(Math.random()*ms.length)|0];
+        }
+        g.aiBusy = false;
+        if(this.game!==token) return;
+        if(mv) this.doMove(mv);
+        else { this.saveGame(); }
+      };
+      setTimeout(think, 380);
+    },
+    finishGame(status){
+      const g = this.game;
+      if(g.mode==='ai'){
+        const r = this.profile.records[g.level];
+        if(status.result==='draw') r.d++;
+        else if(status.result===g.playerColor){ r.w++; this.spawnConfetti(); SFX.play('win'); }
+        else { r.l++; SFX.play('over'); }
+      } else {
+        if(status.reason==='checkmate'){ this.spawnConfetti(); SFX.play('win'); }
+        else SFX.play('draw');
+      }
+      this.profile.savedGame = null;
+      this.save();
+    },
+    undoMove(){
+      if(!this.canUndo) return;
+      const g = this.game;
+      const n = g.mode==='ai' ? (g.states[g.states.length-1].turn===g.playerColor ? 2 : 1) : 1;
+      for(let k=0; k<n && g.states.length>1; k++){
+        g.states.pop(); g.notes.pop(); g.lasts.pop();
+      }
+      g.over = null;
+      const last = g.lasts[g.lasts.length-1];
+      g.lastFrom = last ? last.from : -1;
+      g.lastTo = last ? last.to : -1;
+      this.selected = null; this.hintSquares = null;
+      SFX.play('click');
+      this.pushToast('Rewound! Try again 🐾','↩️');
+      this.saveGame();
+      this.scrollMoves();
+    },
+    askHint(){
+      if(!this.canHint) return;
+      let mv = null;
+      const hd = Math.max(1, Math.min(4, Math.round(this.profile.lab.hintBrain)));
+      try{ mv = aiChooseMove(this.cur, hd, { timeCap:1200, nodeCap:120000 }); }catch(e){ mv = null; }
+      if(!mv){ this.pushToast('No moves to show right now!','🤔'); return; }
+      this.hintSquares = { from:mv.from, to:mv.to };
+      SFX.play('hint');
+      this.pushToast('Psst… try this move! 💜','💡');
+      clearTimeout(this._hintT);
+      this._hintT = setTimeout(()=>{ this.hintSquares=null; },7000);
+    },
+    pauseUndo(){ this.paused=false; this.undoMove(); },
+
+    /* ------- Game Master Lab ------- */
+    openLab(from){
+      SFX.play('click');
+      this.labReturn = (from==='pause' && this.game && !this.game.over) ? 'game' : 'menu';
+      if(this.labReturn==='game'){
+        this.paused = true; // the AI politely waits while the Lab is open (its timer checks this.paused)
+      }
+      this.labMsg=''; this.labMsgOk=false;
+      this.screen='lab';
+    },
+    closeLab(){
+      SFX.play('click');
+      if(this.labReturn==='game' && this.game){
+        this.screen='game'; // still paused — the pause overlay welcomes you back
+      } else {
+        this.labReturn='menu';
+        this.screen='menu';
+      }
+    },
+    setLab(key,ev){
+      const d = LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v = parseFloat(ev.target.value); if(!isFinite(v)) v = d.def;
+      v = Math.max(d.min, Math.min(d.max, v));
+      this.profile.lab[key] = Math.round(v*100)/100;
+      this.save();
+    },
+    pickTheme(key){ this.profile.lab.theme = key; this.save(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.profile.lab, defaultLab()); // keep object identity (a running game reads this ref)
+      this.save(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even in chess!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-move. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.profile.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like thinkTime = 0.5'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: thinkTime = 0.5'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off the board! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const clamped=Math.max(def.min,Math.min(def.max,val));
+          let v=clamped, snapped=false;
+          if(def.step>=1){
+            const sn=Math.round(v/def.step)*def.step;
+            if(sn!==v){ v=sn; snapped=true; }
+          }
+          v=this.fmtNum(v);
+          this.profile.lab[name]=v;
+          this.save(); SFX.play('click');
+          if(clamped!==val){
+            this.labMsg='✨ '+name+' wanted to be '+this.fmtNum(val)+', but I kept it safe at '+v+' (allowed: '+def.min+' to '+def.max+').';
+          } else if(snapped){
+            this.labMsg='✨ I snapped '+name+' to '+v+' — this dial moves in steps of '+def.step+'.';
+          } else {
+            this.labMsg='✨ Done! '+name+' = '+v+'. Go play and feel it!';
+          }
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like thinkTime = 0.5';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ------- pause / settings ------- */
+    togglePause(){
+      if(this.screen!=='game' || !this.game || this.promoOpen || this.game.over) return;
+      this.paused = !this.paused;
+      SFX.play('click');
+    },
+    toggleSound(){
+      this.profile.sound = !this.profile.sound;
+      SFX.on = this.profile.sound;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    toggleLegal(){
+      this.profile.showLegal = !this.profile.showLegal;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.showLegal?'Dots on — see where pieces can go 🎯':'Dots off — exploring on your own! 🌟','🎯');
+    },
+    toggleFlip(){
+      this.profile.flip2p = !this.profile.flip2p;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.flip2p?'Board flips each turn 🔄':'Board stays still 📌','🔄');
+    },
+    armReset(){
+      this.resetArmed = true;
+      clearTimeout(this._ra);
+      this._ra = setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile = defaultProfile();
+      this.resetArmed = false;
+      this.game = null;
+      SFX.on = true;
+      this.screen = 'menu';
+      this.pushToast('Fresh start! Good luck! 🌱','♟️');
+    },
+
+    /* ------- misc ------- */
+    scrollMoves(){
+      this.$nextTick(()=>{
+        const el = this.$refs.movelist;
+        if(el) el.scrollTop = el.scrollHeight;
+      });
+    },
+    spawnConfetti(){
+      const em = ['⭐','🎉','🐾','♛','💜','✨'];
+      const out = [];
+      for(let i=0;i<30;i++){
+        out.push({ e:em[(Math.random()*em.length)|0],
+          left:Math.random()*96, dur:2.2+Math.random()*1.6,
+          delay:Math.random()*0.7, size:16+Math.random()*18 });
+      }
+      this.confetti = out;
+    },
+    saveGame(){
+      const g = this.game;
+      if(!g) return;
+      if(g.over){ this.profile.savedGame = null; }
+      else {
+        this.profile.savedGame = {
+          mode:g.mode, level:g.level, playerColor:g.playerColor,
+          notes:g.notes.slice(),
+          lasts:g.lasts.slice(),
+          states:g.states.map(serState)
+        };
+      }
+      this.save();
+    }
+  },
+  mounted(){
+    SFX.on = this.profile.sound;
+    window.addEventListener('keydown',(e)=>{
+      if(this.screen==='lab'){
+        if(e.key==='Escape') this.closeLab();
+        return;
+      }
+      if(this.screen!=='game' || !this.game) return;
+      const tag=(e.target && e.target.tagName) || '';
+      if(tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT') return;
+      if(e.key===' ' || e.key==='ArrowUp' || e.key==='ArrowDown' || e.key==='ArrowLeft' || e.key==='ArrowRight'){
+        e.preventDefault();
+      }
+      if(this.promoOpen){
+        if(e.key==='Escape'){ this.cancelPromo(); }
+        return;
+      }
+      if(this.game.over) return;
+      if(e.key==='p' || e.key==='P' || e.key==='Escape') this.togglePause();
+      else if(e.key==='u' || e.key==='U') this.undoMove();
+      else if(e.key==='h' || e.key==='H') this.askHint();
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden && this.screen==='game' && this.game && !this.game.over && !this.promoOpen){
+        this.paused = true;
+      }
+    });
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    this.pushToast('Welcome to Paw Chess! ♟️','🐾');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>

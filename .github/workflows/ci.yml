@@ -1,0 +1,89 @@
+name: Guard & Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ---- The guard: every PR and push must pass these gates -------------
+  guard:
+    name: Game guard (offline, hygiene, syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run the game guard
+        run: python3 tools/check_games.py
+
+  # ---- DCO: contributions must be signed off ---------------------------
+  signoff:
+    name: DCO sign-off check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify every commit is signed off
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          bad=$(git log --format='%H%x00%B%x00END%x00' \
+                  "origin/${{ github.base_ref }}..HEAD" | \
+                python3 -c "
+          import sys
+          data = sys.stdin.read()
+          bad = []
+          for chunk in data.split('\x00END\x00'):
+              chunk = chunk.strip('\x00\n')
+              if not chunk:
+                  continue
+              sha, _, body = chunk.partition('\x00')
+              if 'Signed-off-by:' not in body:
+                  bad.append(sha)
+          print(' '.join(bad))
+          ")
+          if [ -n "$bad" ]; then
+            echo "Commits missing Signed-off-by: $bad"
+            echo "Fix: git rebase --signoff origin/${{ github.base_ref }}, then force-push."
+            exit 1
+          fi
+          echo "All commits signed off."
+
+  # ---- Deployment: live site on GitHub Pages --------------------------
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: guard
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: "pages"
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

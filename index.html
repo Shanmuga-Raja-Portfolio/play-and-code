@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play &amp; Code 🎮</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg">
+<!--
+  PLAY & CODE — the one visible door to everything.
+  100% static: no scripts, no libraries, no internet, nothing to break.
+  Nine free, offline games for kids. Play a game, then open its in-game
+  "Game Master Lab" to tweak the real variables that make it work.
+  Each card opens a game folder sitting next to this file. If a card says
+  "files incomplete", that game's folder (with its lib/ folder) is missing.
+  Add a future game: copy its folder here and add one <a class="card"> block.
+  Free & open source under the MIT license — see LICENSE.
+-->
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;
+    background:linear-gradient(180deg,#7ec8f7 0%,#a5e0fb 40%,#d8f3c4 100%);
+    min-height:100vh;overflow-x:hidden;color:#334155;
+  }
+  .cloud{position:fixed;background:rgba(255,255,255,.85);border-radius:999px;animation:drift linear infinite;z-index:0}
+  .cloud::before,.cloud::after{content:'';position:absolute;background:inherit;border-radius:50%}
+  .cloud::before{width:60%;height:160%;left:15%;top:-70%}
+  .cloud::after{width:40%;height:110%;right:12%;top:-40%}
+  @keyframes drift{from{left:-260px}to{left:110%}}
+  .wrap{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:2rem 1rem 3rem}
+  header{text-align:center;margin-bottom:1.6rem}
+  .mascots{font-size:3.4rem;letter-spacing:.3rem}
+  .mascots span{display:inline-block;animation:bob 2.4s ease-in-out infinite}
+  .mascots span:nth-child(2){animation-delay:.3s}
+  .mascots span:nth-child(3){animation-delay:.6s}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  h1{margin:.4rem 0 .2rem;font-size:clamp(1.9rem,5vw,3rem);color:#fff;
+     text-shadow:0 3px 0 rgba(0,0,0,.22);letter-spacing:.02rem}
+  .tag{font-weight:700;color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.15);margin:0}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.1rem;margin-top:1.6rem}
+  @media (max-width:840px){
+    .grid{grid-template-columns:repeat(2,1fr)}
+    .card:last-child{grid-column:1/-1;justify-self:center;width:calc(50% - .55rem)}
+  }
+  @media (max-width:560px){
+    .grid{grid-template-columns:1fr}
+    .card:last-child{grid-column:auto;width:100%}
+  }
+  .card{
+    display:flex;flex-direction:column;align-items:center;text-align:center;gap:.2rem;
+    background:rgba(255,255,255,.92);border-radius:1.6rem;padding:1.3rem .8rem 1.1rem;
+    text-decoration:none;color:#334155;box-shadow:0 6px 0 rgba(0,0,0,.13),0 14px 26px rgba(31,45,60,.12);
+    border:4px solid #fff;transition:transform .16s,box-shadow .16s;
+  }
+  .card:hover{transform:translateY(-7px) rotate(-.6deg) scale(1.02);box-shadow:0 10px 0 rgba(0,0,0,.13),0 20px 32px rgba(31,45,60,.18)}
+  .card:active{transform:scale(.96)}
+  .emoji{font-size:3.2rem;line-height:1;min-height:4.8rem;display:flex;align-items:center;justify-content:center}
+  .badge{background:radial-gradient(circle at 35% 30%,#d5efff,#8fd0f8);border-radius:50%;
+         width:4.8rem;height:4.8rem;display:flex;align-items:center;justify-content:center;
+         box-shadow:inset 0 -5px 0 rgba(0,0,0,.08),0 4px 8px rgba(31,45,60,.16)}
+  .card:hover .emoji{animation:wiggle .5s ease-in-out infinite}
+  @keyframes wiggle{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+  .name{font-weight:900;font-size:1.12rem;margin-top:.35rem}
+  .desc{font-size:.8rem;font-weight:700;color:#64748b;line-height:1.25;min-height:2.4em}
+  .play{margin-top:.5rem;background:linear-gradient(180deg,#4ade80,#22c55e);color:#fff;font-weight:900;
+        border-radius:.9rem;padding:.35rem 1.2rem;font-size:.85rem;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+  .card:hover .play{filter:brightness(1.07)}
+  .b1{border-color:#fbbf24}.b2{border-color:#f472b6}.b3{border-color:#60a5fa}.b4{border-color:#fca5a5}
+  .b5{border-color:#84cc16}.b6{border-color:#a855f7}.b7{border-color:#f97316}.b8{border-color:#14b8a6}.b9{border-color:#818cf8}
+  .parents{
+    display:flex;align-items:center;justify-content:center;gap:.7rem;flex-wrap:wrap;
+    max-width:560px;margin:2rem auto 0;padding:.9rem 1.4rem;
+    background:rgba(255,255,255,.92);border:4px solid #60a5fa;border-radius:999px;
+    text-decoration:none;color:#334155;font-weight:900;font-size:1rem;
+    box-shadow:0 6px 0 rgba(0,0,0,.13),0 14px 26px rgba(31,45,60,.12);
+    transition:transform .16s,box-shadow .16s;
+  }
+  .parents:hover{transform:translateY(-5px) scale(1.02);box-shadow:0 9px 0 rgba(0,0,0,.13),0 18px 30px rgba(31,45,60,.18)}
+  .parents:active{transform:scale(.96)}
+  .parents .why{font-weight:700;font-size:.8rem;color:#64748b;width:100%;text-align:center}
+  .foot{margin-top:2.6rem;text-align:center;color:#334155;font-weight:900;font-size:.85rem;text-shadow:0 1px 0 rgba(255,255,255,.6)}
+  .foot .small{opacity:.85;font-weight:700;margin-top:.2rem}
+</style>
+</head>
+<body>
+  <div class="cloud" style="width:170px;height:52px;top:9%;animation-duration:75s"></div>
+  <div class="cloud" style="width:120px;height:40px;top:26%;animation-duration:95s;animation-delay:-40s"></div>
+  <div class="cloud" style="width:210px;height:60px;top:55%;animation-duration:120s;animation-delay:-70s"></div>
+
+  <div class="wrap">
+    <header>
+      <div class="mascots"><span>🐱</span><span>🎮</span><span>🐶</span></div>
+      <h1>Play &amp; Code</h1>
+      <p class="tag">Play the games, master the code. 🌈</p>
+    </header>
+
+    <main class="grid">
+      <a class="card b1" href="whisker-warriors/index.html">
+        <span class="emoji">🐱</span><span class="name">Whisker Warriors</span>
+        <span class="desc">Lead the cat army against the dog base — battles, bosses &amp; upgrades!</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b2" href="party-meadow/index.html">
+        <span class="emoji">🌼</span><span class="name">Party Meadow</span>
+        <span class="desc">Six little games in one sunny meadow. Take turns &amp; beat each other's scores!</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b3" href="cloud-hopper/index.html">
+        <span class="emoji badge">☁️</span><span class="name">Cloud Hopper</span>
+        <span class="desc">Hop across sky islands, gather fruit and bring every baby animal home.</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b4" href="backyard-grand-prix/index.html">
+        <span class="emoji">🏁</span><span class="name">Backyard Grand Prix</span>
+        <span class="desc">Race tiny animal karts around the backyard. 3 tracks, 3 laps, GO!</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b5" href="tiny-sprout-farm/index.html">
+        <span class="emoji">🌱</span><span class="name">Tiny Sprout Farm</span>
+        <span class="desc">Plant, water and harvest your cozy garden. Nothing ever wilts here.</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b6" href="magic-doodle/index.html">
+        <span class="emoji">🎨</span><span class="name">Magic Doodle</span>
+        <span class="desc">Draw with rainbow brushes, stamp stickers and color cute pictures.</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b7" href="mooshi/index.html">
+        <span class="emoji">🐮</span><span class="name">Mooshi</span>
+        <span class="desc">Feed, tickle and dress up the roundest, happiest little friend.</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b8" href="bridge-buddies/index.html">
+        <span class="emoji">🌉</span><span class="name">Bridge Buddies</span>
+        <span class="desc">Snap planks between bolts and walk your buddies across the canyon.</span>
+        <span class="play">▶ Play</span>
+      </a>
+      <a class="card b9" href="paw-chess/index.html">
+        <span class="emoji">♟️</span><span class="name">Paw Chess</span>
+        <span class="desc">Real chess! Play the computer or each other, with hints for beginners.</span>
+        <span class="play">▶ Play</span>
+      </a>
+    </main>
+
+    <a class="parents" href="parents.html">
+      <span>👪</span><span>For Parents</span>
+      <span class="why">How these games teach real coding — and why they're safe, offline &amp; ad-free.</span>
+    </a>
+
+    <footer class="foot">
+      <div>made with ❤️ for young coders · free &amp; open source (MIT)</div>
+      <div class="small">🌱 offline · no ads · just fun</div>
+    </footer>
+  </div>
+</body>
+</html>

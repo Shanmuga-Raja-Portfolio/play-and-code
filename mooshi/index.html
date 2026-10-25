@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mooshi 🐮</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐮</text></svg>">
+<!--
+  MOOSHI — the anti-tamagotchi: a virtual pet with ZERO guilt mechanics.
+  Part of the free, MIT-licensed "Play & Code" collection (see ../LICENSE).
+  Parent notes:
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * Mooshi is NEVER sad, sick, hungry-looking or punished. Friendship only ever goes UP.
+  * If the child is away for days, Mooshi was simply "napping happily". Absence is never a penalty.
+  * No ads, no links out, no accounts, no purchases, no loot boxes, no energy timers, no streaks.
+  * All dress-up unlocks are deterministic (fixed Friendship Level order).
+  * The 🛠️ Game Master Lab lets kids tune real game constants and type real (tiny) code.
+  * Tweak constants below (FOODS, XP, XP_CD, LEVEL_STEP, FULLNESS_DECAY_S, CLEAN_TIME) for difficulty.
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#ffd9e8;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>🐮 Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#ffd9e8 0%,#fff3d6 55%,#dff5d8 100%);font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  @keyframes pulseSoft{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  .pulse-tag{animation:pulseSoft 1s infinite;display:inline-block}
+  @keyframes fall{to{transform:translateY(105vh) rotate(360deg)}}
+  .confetti{position:absolute;top:-50px;animation:fall linear forwards;pointer-events:none}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  .lab-slider{width:100%;height:34px;accent-color:#f59e0b;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app" class="font-kid select-none">
+  <div class="min-h-screen" :style="appBg">
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" class="fixed left-1/2 -translate-x-1/2 top-4 z-50 flex flex-col items-center gap-2 pointer-events-none px-4">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ CONFETTI (level ups) ============ -->
+  <div v-if="confetti.length" class="fixed inset-0 z-40 pointer-events-none overflow-hidden">
+    <div class="confetti" v-for="(c,i) in confetti" :key="i" :style="{left:c.left+'%',animationDuration:c.dur+'s',animationDelay:c.delay+'s',fontSize:c.size+'px'}">{{c.e}}</div>
+  </div>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center">
+    <div class="text-6xl md:text-7xl"><span class="bob">🌼</span><span class="bob" style="animation-delay:.3s">🐮</span><span class="bob" style="animation-delay:.6s">💛</span></div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold" :class="inkTitle"><span class="bob" style="animation-delay:.15s">M</span>ooshi</h1>
+      <p class="font-bold mt-2 text-lg" :class="inkSub">the happiest little blob-cow 🌼💛</p>
+    </div>
+    <div class="flex flex-col gap-3 w-72">
+      <button class="btn btn-green btn-xl" @click="startHome">▶ Play! <span class="bg-white/25 rounded-full px-2 text-sm">❤️ Lv {{level}}</span></button>
+      <button class="btn btn-amber btn-xl" @click="openLab('menu')">🛠️ Game Master</button>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="text-xs font-bold mt-2" :class="inkSub">💛 never sad · never punished · friendship only grows</div>
+    <div class="text-xs font-bold absolute bottom-3" :class="inkFoot">🐮 Play &amp; Code · made with ❤️ for young coders · {{version}}</div>
+  </div>
+
+  <!-- ============ HOME SCENE ============ -->
+  <div v-else-if="screen==='home'" class="max-w-5xl mx-auto p-2 md:p-4 flex flex-col gap-2 md:gap-3 min-h-screen">
+    <!-- top bar -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <button class="btn btn-white !px-3 !py-2.5" @click="quitToMenu" title="Menu">⬅</button>
+      <button class="btn btn-white !px-3 !py-2.5" @click="togglePause" title="Pause">⏸️</button>
+      <div class="panel flex items-center gap-2 flex-1 min-w-[170px]">
+        <span class="text-xl">❤️</span>
+        <div class="h-4 flex-1 rounded-full bg-rose-100 overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-rose-300 to-rose-500 transition-all" :style="{width:levelPct+'%'}"></div>
+        </div>
+        <span class="text-xs font-black whitespace-nowrap text-slate-600">Lv {{level}}</span>
+      </div>
+      <div class="panel flex items-center gap-2 flex-1 min-w-[170px]" :title="fullnessLabel">
+        <span class="text-xl">🍎</span>
+        <div class="h-4 flex-1 rounded-full bg-amber-100 overflow-hidden">
+          <div class="h-full bg-gradient-to-r from-lime-300 to-emerald-400 transition-all" :style="{width:fullnessPct+'%'}"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- the scene -->
+    <div class="relative rounded-2xl overflow-hidden shadow-2xl ring-4 ring-white/60">
+      <canvas ref="cv" width="1000" height="560" class="w-full block bg-rose-100"></canvas>
+
+      <!-- pause overlay -->
+      <div v-if="paused" class="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+          <div class="text-5xl mb-1">⏸️</div>
+          <h2 class="text-2xl font-extrabold text-slate-700 mb-4">Paused</h2>
+          <p class="text-xs font-bold text-slate-400 mb-3">Mooshi will wait happily 💛</p>
+          <div class="flex flex-col gap-2">
+            <button class="btn btn-green" @click="togglePause">▶ Keep Playing</button>
+            <button class="btn btn-purple" @click="openLab('pause')">🛠️ Game Master Lab</button>
+            <button class="btn btn-white" @click="toggleSound">{{profile.sound?'🔊 Sound: ON':'🔇 Sound: OFF'}}</button>
+            <button class="btn btn-red" @click="quitToMenu">🏠 Main Menu</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- big interaction buttons -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+      <button class="btn btn-red" @click="openPanel('feed')">🍎 Feed</button>
+      <button class="btn btn-blue" @click="openPanel('play')">🎾 Play</button>
+      <button class="btn btn-green" :disabled="sceneState.cleaning||sceneState.busy||sceneState.napping" @click="cleanNow">🫧 Clean</button>
+      <button class="btn btn-pink" @click="openPanel('dress')">🎀 Dress-up</button>
+    </div>
+
+    <!-- FEED PANEL -->
+    <div v-if="panel==='feed'" class="panel !p-4">
+      <div class="flex items-center gap-2 mb-2 flex-wrap">
+        <h2 class="text-lg font-extrabold text-slate-700 flex-1">🍎 Snack time!</h2>
+        <span class="text-xs font-bold text-slate-500">{{fullnessLabel}}</span>
+        <button class="btn btn-white !px-3 !py-3.5 text-xs" @click="openPanel('feed')">✖ Close</button>
+      </div>
+      <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+        <button v-for="f in foods" :key="f.id" :disabled="sceneState.busy||sceneState.napping" @click="feedFood(f)"
+                class="rounded-2xl bg-white border-4 border-red-200 hover:border-red-300 p-2 text-center shadow transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+          <div class="text-4xl leading-none">{{f.e}}</div>
+          <div class="text-xs font-black text-slate-600 mt-1">{{f.name}}</div>
+        </button>
+      </div>
+      <p v-if="sceneState.napping" class="text-xs font-bold text-slate-400 mt-2">Mooshi is napping 💤 — wake Mooshi up first for snacks!</p>
+      <p v-else class="text-xs font-bold text-slate-400 mt-2">If Mooshi is full, that's okay too — no snack is ever wasted worry!</p>
+    </div>
+
+    <!-- PLAY PANEL -->
+    <div v-else-if="panel==='play'" class="panel !p-4">
+      <div class="flex items-center gap-2 mb-2">
+        <h2 class="text-lg font-extrabold text-slate-700 flex-1">🎾 Playtime!</h2>
+        <button class="btn btn-white !px-3 !py-3.5 text-xs" @click="openPanel('play')">✖ Close</button>
+      </div>
+      <div class="grid md:grid-cols-3 gap-2">
+        <button :disabled="sceneState.busy||sceneState.napping" @click="ballNow"
+                class="rounded-2xl bg-white border-4 border-blue-200 hover:border-blue-300 p-3 text-center shadow transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+          <div class="text-4xl leading-none">🎾</div>
+          <div class="text-sm font-black text-slate-700 mt-1">{{sceneState.ball?'Put the ball away':'Bring out the ball'}}</div>
+          <div class="text-[11px] font-bold text-slate-400">tap the ball in the garden to bounce it!</div>
+        </button>
+        <div class="rounded-2xl bg-white border-4 border-purple-200 p-3 text-center shadow">
+          <div class="text-4xl leading-none">🪶</div>
+          <div class="text-sm font-black text-slate-700 mt-1">Tickle</div>
+          <div class="text-[11px] font-bold text-slate-400">wiggle your pointer fast over Mooshi — hehe! 😄</div>
+        </div>
+        <button :disabled="sceneState.busy" @click="napNow"
+                class="rounded-2xl bg-white border-4 border-emerald-200 hover:border-emerald-300 p-3 text-center shadow transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+          <div class="text-4xl leading-none">{{sceneState.napping?'🌤️':'😴'}}</div>
+          <div class="text-sm font-black text-slate-700 mt-1">{{sceneState.napping?'Wake up Mooshi':'Nap time'}}</div>
+          <div class="text-[11px] font-bold text-slate-400">{{sceneState.napping?'a big stretch and a yawn!':'cozy Zzz, wake any time 💤'}}</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- DRESS-UP PANEL -->
+    <div v-else-if="panel==='dress'" class="panel !p-4 flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <h2 class="text-lg font-extrabold text-slate-700 flex-1">🎀 Dress-up Mooshi!</h2>
+        <button class="btn btn-white !px-3 !py-3.5 text-xs" @click="openPanel('dress')">✖ Close</button>
+      </div>
+      <div>
+        <div class="text-sm font-black text-slate-600 mb-1">🎩 Hats — pick one</div>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <button @click="equipNone('hat')"
+                  class="rounded-2xl bg-white border-4 p-2 text-center shadow transition-transform active:scale-95"
+                  :class="dressView.hatNone?'border-amber-400':'border-slate-200 hover:border-slate-300'">
+            <div class="text-3xl leading-none">🚫</div>
+            <div class="text-xs font-black text-slate-600 mt-1">No hat</div>
+            <div class="text-[10px] font-bold text-slate-400">{{dressView.hatNone?'Nothing on top!':'Take the hat off'}}</div>
+          </button>
+          <button v-for="it in dressView.hats" :key="it.c.id" @click="equipItem(it)"
+                  class="rounded-2xl bg-white border-4 p-2 text-center shadow transition-transform active:scale-95"
+                  :class="it.on?'border-amber-400':(it.locked?'border-slate-200 opacity-70':'border-pink-200 hover:border-pink-300')">
+            <div class="text-3xl leading-none">{{it.locked?'🔒':it.c.e}}</div>
+            <div class="text-xs font-black text-slate-600 mt-1">{{it.c.name}}</div>
+            <div class="text-[10px] font-bold leading-tight" :class="it.locked?'text-slate-400':'text-amber-600'">
+              {{it.locked?('Unlocks at Friendship Level '+it.c.lv+' 💛'):(it.on?'Wearing it! ✨':'Tap to wear')}}
+            </div>
+          </button>
+        </div>
+      </div>
+      <div>
+        <div class="text-sm font-black text-slate-600 mb-1">✨ Extras — pick one</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <button @click="equipNone('acc')"
+                  class="rounded-2xl bg-white border-4 p-2 text-center shadow transition-transform active:scale-95"
+                  :class="dressView.accNone?'border-amber-400':'border-slate-200 hover:border-slate-300'">
+            <div class="text-3xl leading-none">🚫</div>
+            <div class="text-xs font-black text-slate-600 mt-1">No extra</div>
+            <div class="text-[10px] font-bold text-slate-400">{{dressView.accNone?'Just Mooshi!':'Take the extra off'}}</div>
+          </button>
+          <button v-for="it in dressView.accs" :key="it.c.id" @click="equipItem(it)"
+                  class="rounded-2xl bg-white border-4 p-2 text-center shadow transition-transform active:scale-95"
+                  :class="it.on?'border-amber-400':(it.locked?'border-slate-200 opacity-70':'border-purple-200 hover:border-purple-300')">
+            <div class="text-3xl leading-none">{{it.locked?'🔒':it.c.e}}</div>
+            <div class="text-xs font-black text-slate-600 mt-1">{{it.c.name}}</div>
+            <div class="text-[10px] font-bold leading-tight" :class="it.locked?'text-slate-400':'text-amber-600'">
+              {{it.locked?('Unlocks at Friendship Level '+it.c.lv+' 💛'):(it.on?'Wearing it! ✨':'Tap to wear')}}
+            </div>
+          </button>
+        </div>
+      </div>
+      <p class="text-xs font-bold text-slate-400 text-center">Play, feed, clean and snuggle to grow friendship and unlock more! 💛</p>
+    </div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold" :class="inkTitle">❓ How to Play</h1>
+    </div>
+    <div class="panel !p-5 flex flex-col gap-4 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="text-3xl">🐮</span><p>This is <b>Mooshi</b>, the happiest little blob-cow. Mooshi is <b>never</b> sad, sick or lonely — and friendship only ever grows. If you go away for days, Mooshi simply naps happily waiting for you! 😴💛</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">👆</span><p>Move your pointer around — Mooshi's big eyes follow it! Tap Mooshi for a happy <b>boing</b> and a heart.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🍎</span><p><b>Feed:</b> pick a snack. Mooshi waddles to the bowl and munches. If Mooshi is already full, they'll politely say so — no worries, nothing bad happens!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🎾</span><p><b>Play:</b> bounce the ball (Mooshi watches and hops!), <b>tickle</b> by wiggling your pointer fast over Mooshi, or snuggle up for a <b>nap</b>.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🫧</span><p><b>Clean:</b> soap bubbles rain down for a few seconds — tap them to pop! It ends with a sparkly shine. ✨</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🎀</span><p><b>Dress-up:</b> as your friendship level grows you unlock hats and extras — party hat, bow tie, flower, glasses, scarf, beanie and a crown! 👑</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">❤️</span><p>Every kind thing you do adds friendship. It <b>never</b> goes down, ever. The sky in the window even matches the real time of day! 🌅🌙</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">⌨️</span><p>Space = boing poke. P or Esc = pause. No rush — Mooshi is happy whenever you visit. 💛</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="max-w-md mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold" :class="inkTitle">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <div class="panel !p-3 text-center">
+        <div class="text-xs font-bold text-slate-500">{{statsLine}}</div>
+        <div class="text-[11px] font-bold text-slate-400 mt-0.5">{{statsLine2}}</div>
+      </div>
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases friendship, snacks, naps and dress-up. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center">
+          <span class="text-xs font-black text-rose-600">Really start fresh?</span>
+          <button class="btn btn-red !py-3.5 !px-3 text-xs" @click="doReset">Yes</button>
+          <button class="btn btn-white !py-3.5 !px-3 text-xs" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">🐮 Mooshi · {{version}} · 100% offline</div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="max-w-3xl md:max-w-5xl mx-auto p-4 md:p-6 flex flex-col gap-3 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold" :class="inkTitle">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="font-bold text-sm text-center -mt-1" :class="inkSub">You are the boss of Mooshi! Move a slider, then go play and feel the difference.</p>
+
+    <div class="grid md:grid-cols-2 gap-3 items-start">
+      <!-- sliders + theme picker -->
+      <div class="panel !p-4 flex flex-col gap-3">
+        <div v-for="d in LAB_DEFS" :key="d.key">
+          <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+            <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+            <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">×{{profile.lab[d.key]}}</span>
+          </div>
+          <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+                 :value="profile.lab[d.key]" @input="setLab(d.key,$event)">
+          <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>×{{d.min}}</span><span class="text-slate-500">normal = ×{{d.def}}</span><span>×{{d.max}}</span></div>
+        </div>
+        <div>
+          <div class="font-black text-slate-700 text-sm mb-2">🌈 Page theme <span class="font-bold text-slate-400 text-xs">· changes the whole page, right now!</span></div>
+          <div class="flex gap-2">
+            <button v-for="s in LAB_THEMES" :key="s.key" class="btn flex-1 !py-2 text-sm whitespace-nowrap"
+                    :class="profile.lab.theme===s.key?'btn-purple':'btn-white'" @click="pickTheme(s.key)">{{s.icon}} {{s.name}}</button>
+          </div>
+        </div>
+        <button class="btn btn-red text-sm self-start" @click="resetLab">↩️ Reset to normal</button>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <!-- lesson cards -->
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">📦</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Variables</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">A variable is a named number. <b>boing</b> decides how high Mooshi hops when you poke. Slide it up — sproing!</p>
+          </div>
+        </div>
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">⏱️</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Timers &amp; loops</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">The game loop ticks about 60 times a second. Every <b>snackTimer</b> × 40 seconds of play, Mooshi's tummy slides down 1 point. Lots of tiny ticks = smooth wiggles!</p>
+          </div>
+        </div>
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">🤔</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Conditions (IF)</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">Computers love IF questions. IF <b>wiggle</b> is big, Mooshi breathes and wiggles faster; IF Mooshi is napping, it slows to a cozy sway. Try wiggle = 2!</p>
+          </div>
+        </div>
+
+        <!-- mini code box -->
+        <div class="panel !p-4 flex flex-col gap-2">
+          <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+          <p class="text-xs font-bold text-slate-500">Try <b>boing = 2</b>, or <b>friendXp = 1 + 1</b>, or even <b>snackTimer = boing * 2</b> — then press Enter.</p>
+          <div class="flex gap-2">
+            <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+                   class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+                   placeholder="boing = 2">
+            <button class="btn btn-green !py-2 text-sm" @click="runLabCode">Run ▶</button>
+          </div>
+          <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+          <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   MOOSHI — the anti-tamagotchi (original character & art)
+   A virtual pet with ZERO guilt mechanics:
+   friendship never decays, absence is never punished,
+   fullness is only "would enjoy a snack" vs "full, thank you".
+   ============================================================ */
+
+// --- parental knobs (tweak me!) --------------------------------------------
+const SAVE_KEY = 'mooshiSave1';
+const LEVEL_STEP = 25;        // level N needs about N*LEVEL_STEP XP total
+const FULLNESS_DECAY_S = 40;  // 1 fullness point per this many seconds of OPEN TAB only
+const CLEAN_TIME = 6;         // seconds of bubble rain during a bath
+const WELCOME_AWAY_MS = 4*60*60*1000; // away longer than 4h -> welcome-back bubble
+
+// --- Game Master Lab -------------------------------------------------------
+// Sliders bound to real game constants. Values live in profile.lab and
+// multiply the base constants (1 = normal).
+const LAB_DEFS = [
+  {key:'snackTimer', name:'Snack Timer',    icon:'🍎', min:0.25, max:4,   step:0.05, def:1, hint:'how slowly Mooshi\'s tummy empties'},
+  {key:'boing',      name:'Boing Power',    icon:'🦘', min:0.5,  max:2,   step:0.05, def:1, hint:'how high pokes & ball bounces hop'},
+  {key:'friendXp',   name:'Friendship XP',  icon:'❤️', min:0.5,  max:3,   step:0.5,  def:1, hint:'how fast friendship grows'},
+  {key:'wiggle',     name:'Wiggle Speed',   icon:'🐛', min:0.5,  max:2,   step:0.1,  def:1, hint:'breathing, ear & tail wiggle speed'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_THEMES = [
+  {key:'meadow', icon:'🌸', name:'Meadow'},
+  {key:'sunset', icon:'🌇', name:'Sunset'},
+  {key:'night',  icon:'🌌', name:'Starry'}
+];
+function defaultLab(){
+  const lab={ theme:'meadow' };
+  for(const d of LAB_DEFS) lab[d.key]=d.def;
+  return lab;
+}
+
+// --- snacks ------------------------------------------------------------------
+const FOODS = [
+  {id:'apple', e:'🍎', name:'Apple',  yum:10},
+  {id:'cookie',e:'🍪', name:'Cookie', yum:12},
+  {id:'fish',  e:'🐟', name:'Fish',   yum:14},
+  {id:'milk',  e:'🥛', name:'Milk',   yum:10},
+  {id:'cake',  e:'🍰', name:'Cake',   yum:16},
+  {id:'berry', e:'🫐', name:'Berry',  yum:8}
+];
+
+// --- dress-up: FIXED deterministic unlock order by friendship level ----------
+const COSMETICS = [
+  {id:'party',  e:'🎉', name:'Party Hat',    slot:'hat', lv:2},
+  {id:'bowtie', e:'🎀', name:'Bow Tie',      slot:'acc', lv:3},
+  {id:'flower', e:'🌸', name:'Flower',       slot:'hat', lv:4},
+  {id:'glasses',e:'👓', name:'Round Glasses',slot:'acc', lv:5},
+  {id:'scarf',  e:'🧣', name:'Cozy Scarf',   slot:'acc', lv:6},
+  {id:'beanie', e:'🧢', name:'Tiny Beanie',  slot:'hat', lv:7},
+  {id:'crown',  e:'👑', name:'Crown',        slot:'hat', lv:8}
+];
+
+// --- friendship XP -------------------------------------------------------------
+const XP = {feed:4, toy:3, tickle:2, clean:5, poke:1};   // XP per kind action
+const XP_CD = {feed:3, toy:5, tickle:4, clean:8, poke:2}; // gentle XP cooldowns (seconds)
+
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+const KID_FONT   = '"Comic Sans MS","Chalkboard SE","Segoe UI",sans-serif';
+const W = 1000, H = 560, GROUND = 470;
+
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function rr(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+// total XP needed to BE level L (level 1 = 0 XP; level N needs ~N*LEVEL_STEP total)
+function xpForLevel(L){ return LEVEL_STEP*(L-1)*L/2; }
+function levelFromXp(xp){ let L=1; while(L<999 && xpForLevel(L+1)<=xp) L++; return L; }
+
+/* ---- decorative time-of-day palette (real local clock; purely cosmetic) ---- */
+function skyNow(){
+  const d=new Date(), h=d.getHours()+d.getMinutes()/60;
+  if(h>=5&&h<8)   return {top:'#FFC9A8',bot:'#FFEDD8',wall:'#FCE8D5',orb:'#FFB27A',orbY:220,night:false,name:'Sunrise'};
+  if(h>=8&&h<11)  return {top:'#8FD6F8',bot:'#D8F1FD',wall:'#FDF1DD',orb:'#FFE066',orbY:110,night:false,name:'Morning'};
+  if(h>=11&&h<16) return {top:'#7EC9F2',bot:'#C6EBFB',wall:'#FFF3DA',orb:'#FFD93D',orbY:80, night:false,name:'Afternoon'};
+  if(h>=16&&h<19) return {top:'#FF9E7D',bot:'#FFD9A0',wall:'#FBE3C8',orb:'#FF8C69',orbY:190,night:false,name:'Sunset'};
+  return {top:'#2B3A67',bot:'#5566A0',wall:'#E9E1F7',orb:'#FFF3C4',orbY:120,night:true,name:'Nighttime'};
+}
+const TIME_ICON = {Sunrise:'🌅',Morning:'🌤️',Afternoon:'☀️',Sunset:'🌇',Nighttime:'🌙'};
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click': this.tone(500,650,0.06,'sine',0.07); break;
+      case 'boing': this.tone(300,720,0.18,'triangle',0.09); break;
+      case 'giggle':this.tone(700,1000,0.09,'triangle',0.08); this.tone(900,1250,0.09,'triangle',0.07,0.09); break;
+      case 'munch': this.tone(170,95,0.08,'square',0.045); break;
+      case 'pop':   this.tone(760,1400,0.06,'sine',0.09); break;
+      case 'heart': this.tone(660,880,0.12,'sine',0.09); break;
+      case 'yawn':  this.tone(420,170,0.7,'sine',0.08); break;
+      case 'zzz':   this.tone(240,190,0.2,'sine',0.05); break;
+      case 'full':  this.tone(330,250,0.18,'sine',0.07); break;
+      case 'shine': [880,1175,1568].forEach((f,i)=>this.tone(f,f*1.02,0.1,'sine',0.07,i*0.08)); break;
+      case 'level': [523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.16,'triangle',0.12,i*0.13)); break;
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============================ HOME SCENE ENGINE ============================ */
+class Scene {
+  constructor(hooks){
+    this.hooks=hooks;
+    this.lab=hooks.lab||function(){ return {}; }; // Game Master Lab knobs (live object ref)
+    this.w=W; this.h=H;
+    this.cv=null; this.ctx=null; this._off=null;
+    this.running=false; this._last=0; this._frame=this._frame.bind(this);
+    this.t=0;
+
+    // Mooshi. States are deliberately all-happy.
+    this.m={
+      x:390, homeX:390, tx:390, walk:0,
+      blinkT:rnd(2,6), blink:0,          // blink countdown / blink animation remaining
+      earT:rnd(3,8), ear:0,              // ear wiggle
+      tailT:rnd(2.5,7), tail:0,          // tail flick
+      look:{x:0,y:0},                    // pupil offset (always finite)
+      hopY:0, hopV:0, landT:0,
+      munchT:0, munchN:0,
+      seq:'none',                        // none | toBowl | munch | toHome
+      shakeT:0, stretchT:-1
+    };
+    this.ptr={x:W*0.5,y:H*0.35,in:false};
+    this.tickle=0; this.tickleCd=0;
+
+    this.parts=[];   // emoji/dot particles
+    this.speech=null;
+    this.bowl=null; this.ball=null;
+
+    this.napping=false; this.napZT=0;
+    this.cleaning=false; this.cleanT=0; this.bubT=0; this.bubbles=[]; this.shine=-1;
+
+    this.butter=null; this.butterT=rnd(4,10);
+    this.clouds=[{x:40,y:36,s:1,v:9},{x:220,y:96,s:0.7,v:6},{x:380,y:20,s:1.15,v:12}];
+    this.stars=[];
+    for(let i=0;i<26;i++) this.stars.push({x:rnd(568,902),y:rnd(72,290),r:rnd(0.7,1.8),p:rnd(0,7)});
+  }
+
+  /* ---------- lifecycle ---------- */
+  attach(cv){
+    if(this.cv===cv && this.ctx) return;
+    if(this._off){ this._off(); this._off=null; }
+    this.cv=cv;
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=this.w*dpr; cv.height=this.h*dpr;
+    this.ctx=cv.getContext('2d');
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    const mv=(e)=>this._pmove(e), dn=(e)=>this._pdown(e), lv=()=>{ this.ptr.in=false; };
+    cv.addEventListener('pointermove',mv);
+    cv.addEventListener('pointerdown',dn);
+    cv.addEventListener('pointerleave',lv);
+    this._off=()=>{
+      cv.removeEventListener('pointermove',mv);
+      cv.removeEventListener('pointerdown',dn);
+      cv.removeEventListener('pointerleave',lv);
+    };
+  }
+  start(){ if(this.running||!this.ctx) return; this.running=true; this._last=performance.now(); requestAnimationFrame(this._frame); }
+  stop(){ this.running=false; }
+  busyLock(){ return this.m.seq!=='none' || this.cleaning; }
+
+  _pos(e){
+    const r=this.cv.getBoundingClientRect();
+    let x=this.w/2, y=this.h/2;
+    if(r.width>0)  x=(e.clientX-r.left)/r.width*this.w;
+    if(r.height>0) y=(e.clientY-r.top)/r.height*this.h;
+    if(!Number.isFinite(x)) x=this.w/2;
+    if(!Number.isFinite(y)) y=this.h/2;
+    return {x:x,y:y};
+  }
+  _pmove(e){
+    const p=this._pos(e);
+    const d=Math.hypot(p.x-this.ptr.x,p.y-this.ptr.y);
+    this.ptr.x=p.x; this.ptr.y=p.y; this.ptr.in=true;
+    // tickle: fast wiggling over Mooshi
+    if(this.tickleCd<=0 && !this.napping && d>3 && this.overMooshi(p.x,p.y)){
+      this.tickle=Math.min(420,this.tickle+d);
+      if(this.tickle>=240) this.doTickle();
+    }
+  }
+  _pdown(e){
+    const p=this._pos(e);
+    // 1) pop cleaning bubbles first
+    if(this.cleaning){
+      for(let i=0;i<this.bubbles.length;i++){
+        const b=this.bubbles[i];
+        if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+12){
+          this.bubbles.splice(i,1);
+          SFX.play('pop');
+          this.burst(p.x,p.y,['✨'],3,55,1);
+          return;
+        }
+      }
+    }
+    // 2) bounce the ball
+    if(this.ball){
+      const b=this.ball;
+      if(Math.hypot(p.x-b.x,p.y-b.y)<b.r+14){
+        b.vy=-(400+rnd(0,160))*(this.lab().boing||1);
+        b.vx=Math.max(-260,Math.min(260,b.vx+rnd(-150,150)));
+        SFX.play('boing');
+        this.hooks.xp('toy');
+        if(this.m.seq==='none'&&!this.napping) this.m.hopV=Math.max(this.m.hopV,150*(this.lab().boing||1));
+        return;
+      }
+    }
+    // 3) poke Mooshi
+    this.poke(p.x,p.y);
+  }
+
+  overMooshi(x,y){
+    const dx=(x-this.m.x)/118, dy=(y-(GROUND-104))/108;
+    return dx*dx+dy*dy<=1.3;
+  }
+  poke(x,y){
+    if(this.napping){
+      this.floatEmoji('💤',x-6,y-34,-22);
+      SFX.play('zzz');
+      return;
+    }
+    if(!this.overMooshi(x,y)) return;
+    this.hooks.poked();
+    this.burst(x,y-56,['💗'],2,45,0.5);
+    if(this.m.seq==='none'){ this.m.hopV=345*(this.lab().boing||1); SFX.play('boing'); }
+    else SFX.play('giggle');
+  }
+  pokeCenter(){ this.poke(this.m.x,GROUND-104); }
+
+  say(txt,dur){ this.speech={txt:txt,t:dur||2.6,max:dur||2.6}; }
+  floatEmoji(e,x,y,vy){
+    this.parts.push({e:e,x:x,y:y,vx:rnd(-8,8),vy:(vy===undefined?-42:vy),g:0,t:1,life:1,size:22});
+  }
+  burst(x,y,emojis,n,spd,scale){
+    for(let i=0;i<n;i++){
+      const a=rnd(0,Math.PI*2), s=rnd(spd*0.4,spd);
+      this.parts.push({e:emojis[(Math.random()*emojis.length)|0],
+        x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,g:150,t:0.9,life:0.9,
+        size:Math.round(rnd(16,24)*(scale||1))});
+    }
+    if(this.parts.length>130) this.parts.splice(0,this.parts.length-130);
+  }
+  crumbs(){
+    const mx=this.m.x+((this.bowl&&this.bowl.x>this.m.x)?18:-18);
+    for(let i=0;i<5;i++){
+      this.parts.push({dot:true,c:'#C68B4E',x:mx+rnd(-8,8),y:GROUND-58,
+        vx:rnd(-55,55),vy:rnd(-30,10),g:420,t:0.55,life:0.55,r:rnd(2,3.4)});
+    }
+  }
+  xpPop(){ this.floatEmoji('+💛',this.m.x+72,GROUND-186,-46); }
+  celebrate(){
+    this.burst(this.m.x,GROUND-200,['💗','💖','✨','💛'],9,90,1);
+    this.say('💛 Best friends!',2.2);
+    if(this.m.seq==='none'&&!this.napping) this.m.hopV=Math.max(this.m.hopV,330);
+  }
+  sparkleEquip(){ this.burst(this.m.x,GROUND-110,['✨','💫'],6,70,0.9); }
+
+  doTickle(){
+    this.tickleCd=4; this.tickle=0;
+    SFX.play('giggle');
+    this.burst(this.m.x,GROUND-196,['😄','💗','✨'],5,70,0.9);
+    this.say('Hehe! 😄',1.4);
+    this.m.ear=0.5;
+    if(this.m.seq==='none'&&!this.napping) this.m.hopV=Math.max(this.m.hopV,190);
+    this.hooks.xp('tickle');
+  }
+
+  /* ---------- interactions ---------- */
+  feed(food){
+    if(this.napping){ this.say('💤 napping…',1.8); SFX.play('zzz'); return; }
+    if(this.busyLock()) return;
+    if(!this.hooks.feedAllowed()){ this.decline(); return; }
+    this.hooks.xp('feed');
+    this.hooks.onEaten(food.yum);
+    this.bowl={x:690,emoji:food.e};
+    this.m.seq='toBowl'; this.m.tx=562;
+    this.hooks.setBusy(true);
+  }
+  decline(){
+    this.m.shakeT=0.6;
+    this.say('💤 so full!',2.2);
+    SFX.play('full');
+  }
+  toggleBall(){
+    if(this.napping) return;
+    if(this.ball){ this.ball=null; this.hooks.setBall(false); }
+    else{
+      this.ball={x:660,y:GROUND-150,vx:rnd(-40,40),vy:0,r:24};
+      this.hooks.setBall(true);
+      SFX.play('click');
+    }
+  }
+  toggleNap(){
+    if(this.napping){
+      this.napping=false;
+      this.hooks.setNap(false);
+      this.m.stretchT=0;
+      SFX.play('yawn');
+      this.floatEmoji('🥱',this.m.x+42,GROUND-206,-30);
+    }else{
+      if(this.busyLock()) return;
+      if(this.ball) this.toggleBall();
+      this.napping=true;
+      this.hooks.setNap(true);
+      this.say('💤 nap time…',2);
+      SFX.play('zzz');
+    }
+  }
+  startClean(){
+    if(this.napping||this.busyLock()) return;
+    this.cleaning=true; this.cleanT=CLEAN_TIME; this.bubT=0;
+    this.bubbles.length=0;
+    this.hooks.setClean(true);
+  }
+
+  /* ---------- update ---------- */
+  update(dt){
+    this.t+=dt;
+    const m=this.m;
+
+    // blink / ear / tail timers
+    if(m.blink>0){ m.blink-=dt; }
+    else{ m.blinkT-=dt; if(m.blinkT<=0){ m.blink=0.24; m.blinkT=rnd(2,6); } }
+    if(m.ear>0){ m.ear-=dt; }
+    else{ m.earT-=dt; if(m.earT<=0){ m.ear=0.5; m.earT=rnd(3,8); } }
+    if(m.tail>0){ m.tail-=dt; }
+    else{ m.tailT-=dt; if(m.tailT<=0){ m.tail=0.4; m.tailT=rnd(2.5,7); } }
+    if(m.shakeT>0) m.shakeT-=dt;
+    if(m.landT>0) m.landT-=dt;
+    if(m.stretchT>=0){ m.stretchT+=dt; if(m.stretchT>0.95) m.stretchT=-1; }
+    if(this.tickleCd>0) this.tickleCd-=dt;
+    else this.tickle=Math.max(0,this.tickle-150*dt);
+
+    // feeding sequence: waddle -> munch x3 -> waddle home
+    if(m.seq==='toBowl'||m.seq==='toHome'){
+      const dir=m.tx>m.x?1:-1;
+      m.x+=dir*138*dt; m.walk+=dt*10;
+      m.hopY=Math.abs(Math.sin(m.walk))*6;
+      if((dir>0&&m.x>=m.tx)||(dir<0&&m.x<=m.tx)){
+        m.x=m.tx; m.hopY=0; m.walk=0;
+        if(m.seq==='toBowl'){ m.seq='munch'; m.munchT=0; m.munchN=0; }
+        else{ m.seq='none'; this.bowl=null; this.hooks.setBusy(false); }
+      }
+    }else if(m.seq==='munch'){
+      m.munchT+=dt;
+      if(m.munchT>=0.55){
+        m.munchT-=0.55; m.munchN++;
+        SFX.play('munch'); this.crumbs();
+        if(m.munchN>=3){
+          m.seq='toHome'; m.tx=m.homeX;
+          this.burst(m.x,GROUND-190,['💗','💛'],3,55,0.8);
+          SFX.play('heart');
+          this.say('Yum, thank you! 💛',1.8);
+        }
+      }
+    }else{
+      // idle hop physics (boings)
+      if(m.hopY>0||m.hopV>0){
+        m.hopY+=m.hopV*dt; m.hopV-=1150*dt;
+        if(m.hopY<=0){ m.hopY=0; m.hopV=0; m.landT=0.22; }
+      }
+    }
+
+    // eye target: ball > bowl/food > pointer (always finite math)
+    let tgt=null;
+    if(this.ball&&(Math.abs(this.ball.vx)>25||Math.abs(this.ball.vy)>25)) tgt=this.ball;
+    else if(this.bowl&&(m.seq==='toBowl'||m.seq==='munch')) tgt={x:this.bowl.x+10,y:GROUND-80};
+    else if(this.ptr.in) tgt=this.ptr;
+    let lx=0,ly=0;
+    if(tgt){
+      const dx=tgt.x-m.x, dy=tgt.y-(GROUND-118);
+      const d=Math.hypot(dx,dy);
+      if(d>1&&Number.isFinite(d)){ const k=Math.min(1,130/d)*6.5; lx=dx/d*k; ly=dy/d*k; }
+    }
+    const ek=Math.min(1,dt*8);
+    m.look.x+=(lx-m.look.x)*ek; m.look.y+=(ly-m.look.y)*ek;
+    if(!Number.isFinite(m.look.x)) m.look.x=0;
+    if(!Number.isFinite(m.look.y)) m.look.y=0;
+
+    // nap Zzz
+    if(this.napping){
+      this.napZT-=dt;
+      if(this.napZT<=0){ this.napZT=1.4; this.floatEmoji('💤',m.x+66,GROUND-196,-26); }
+    }
+
+    // butterfly
+    this.butterT-=dt;
+    if(!this.butter&&this.butterT<=0){
+      const fromLeft=Math.random()<0.5;
+      this.butter={x:fromLeft?-30:W+30,y:rnd(110,250),vx:(fromLeft?1:-1)*rnd(55,95),ph:rnd(0,7),by:0};
+      this.butter.by=this.butter.y;
+      this.butterT=rnd(9,20);
+    }
+    if(this.butter){
+      const b=this.butter;
+      b.x+=b.vx*dt;
+      b.y=b.by+Math.sin(this.t*2+b.ph)*26;
+      if(b.x<-60||b.x>W+60) this.butter=null;
+    }
+
+    // ball physics
+    if(this.ball){
+      const b=this.ball;
+      b.vy+=1100*dt; b.x+=b.vx*dt; b.y+=b.vy*dt;
+      const fl=GROUND+20;
+      if(b.y>fl-b.r){
+        b.y=fl-b.r;
+        if(Math.abs(b.vy)>70){
+          if(Math.abs(b.vy)>250&&m.seq==='none'&&!this.napping) m.hopV=Math.max(m.hopV,175);
+          b.vy=-b.vy*0.72;
+        }else b.vy=0;
+        b.vx*=0.985;
+      }
+      if(b.vx!==0&&b.vy===0) b.vx*=Math.max(0,1-1.6*dt);
+      if(Math.abs(b.vx)<3&&b.vy===0) b.vx=0;
+      if(b.x<b.r+16){ b.x=b.r+16; b.vx=Math.abs(b.vx)*0.8; }
+      if(b.x>W-b.r-16){ b.x=W-b.r-16; b.vx=-Math.abs(b.vx)*0.8; }
+    }
+
+    // cleaning: bubble rain, then sparkle finish
+    if(this.cleaning){
+      this.cleanT-=dt; this.bubT-=dt;
+      if(this.bubT<=0&&this.cleanT>0){
+        this.bubT=0.28;
+        this.bubbles.push({x:this.m.x+rnd(-150,150),y:-24,r:rnd(13,24),
+          vy:rnd(46,78),ph:rnd(0,7),hue:Math.random()});
+      }
+      for(let i=this.bubbles.length-1;i>=0;i--){
+        const bb=this.bubbles[i];
+        bb.y+=bb.vy*dt;
+        bb.x+=Math.sin(this.t*3+bb.ph)*22*dt;
+        if(bb.y>GROUND+30) this.bubbles.splice(i,1);
+      }
+      if(this.cleanT<=0&&this.bubbles.length===0){
+        this.cleaning=false;
+        this.hooks.setClean(false);
+        this.shine=0;
+        SFX.play('shine');
+        this.burst(this.m.x,GROUND-130,['✨','💫'],7,85,0.9);
+        this.say('So sparkly! ✨',2);
+        this.hooks.xp('clean');
+      }
+    }
+    if(this.shine>=0){ this.shine+=dt/0.9; if(this.shine>1) this.shine=-1; }
+
+    // clouds drift
+    for(const c of this.clouds){ c.x+=c.v*dt; if(c.x>470) c.x=-120; }
+
+    // particles
+    for(let i=this.parts.length-1;i>=0;i--){
+      const p=this.parts[i];
+      p.t-=dt;
+      if(p.t<=0){ this.parts.splice(i,1); continue; }
+      p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
+    }
+
+    // speech
+    if(this.speech){ this.speech.t-=dt; if(this.speech.t<=0) this.speech=null; }
+
+    // fullness decays ONLY while the tab is open and playing (never from absence)
+    this.hooks.decay(dt);
+  }
+
+  _frame(ts){
+    if(!this.running) return;
+    const dt=Math.min(0.05,Math.max(0,(ts-this._last)/1000)); this._last=ts;
+    this.update(dt);
+    this.render();
+    requestAnimationFrame(this._frame);
+  }
+
+  /* ---------- render ---------- */
+  render(){
+    const ctx=this.ctx; if(!ctx) return;
+    const pal=skyNow();
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    this.drawRoom(ctx,pal);
+    this.drawBowl(ctx);
+    this.drawMooshi(ctx);
+    if(this.ball) this.drawBall(ctx);
+    if(this.butter) this.drawButter(ctx);
+    this.drawBubbles(ctx);
+    if(this.shine>=0) this.drawShine(ctx);
+    this.drawParts(ctx);
+    this.drawSpeech(ctx);
+    this.drawTimeTag(ctx,pal);
+    ctx.restore();
+  }
+
+  drawRoom(ctx,pal){
+    // wall
+    ctx.fillStyle=pal.wall; ctx.fillRect(0,0,W,340);
+    // window with live sky
+    const wx=560,wy=64,ww=350,wh=236;
+    ctx.save();
+    rr(ctx,wx,wy,ww,wh,18); ctx.clip();
+    const g=ctx.createLinearGradient(0,wy,0,wy+wh);
+    g.addColorStop(0,pal.top); g.addColorStop(1,pal.bot);
+    ctx.fillStyle=g; ctx.fillRect(wx,wy,ww,wh);
+    if(pal.night){
+      for(const s of this.stars){
+        ctx.globalAlpha=0.35+0.6*Math.abs(Math.sin(this.t*1.4+s.p));
+        ctx.fillStyle='#FFF7C9';
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      ctx.font='42px '+EMOJI_FONT; ctx.fillText('🌙',838,pal.orbY);
+    }else{
+      ctx.globalAlpha=0.35; ctx.fillStyle=pal.orb;
+      ctx.beginPath(); ctx.arc(838,pal.orbY,48,0,7); ctx.fill();
+      ctx.globalAlpha=1; ctx.fillStyle=pal.orb;
+      ctx.beginPath(); ctx.arc(838,pal.orbY,28,0,7); ctx.fill();
+    }
+    ctx.globalAlpha=pal.night?0.25:0.9; ctx.fillStyle='#FFFFFF';
+    for(const c of this.clouds){
+      const cx=wx+(c.x%(ww+140))-70, cy=wy+30+c.y;
+      ctx.beginPath();
+      ctx.arc(cx,cy,16*c.s,0,7);
+      ctx.arc(cx+20*c.s,cy-9*c.s,14*c.s,0,7);
+      ctx.arc(cx+41*c.s,cy,15*c.s,0,7);
+      ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    ctx.restore();
+    // frame + cross bars
+    ctx.strokeStyle='#FFFFFF'; ctx.lineWidth=10; rr(ctx,wx,wy,ww,wh,18); ctx.stroke();
+    ctx.strokeStyle='#EBDCC5'; ctx.lineWidth=3; rr(ctx,wx-7,wy-7,ww+14,wh+14,22); ctx.stroke();
+    ctx.fillStyle='#FFFFFF';
+    rr(ctx,wx+ww/2-5,wy,10,wh,4); ctx.fill();
+    rr(ctx,wx,wy+wh/2-5,ww,10,4); ctx.fill();
+    // heart picture on the wall
+    ctx.fillStyle='#FFFFFF'; rr(ctx,126,128,92,74,10); ctx.fill();
+    ctx.strokeStyle='#EBDCC5'; ctx.lineWidth=4; rr(ctx,126,128,92,74,10); ctx.stroke();
+    ctx.font='36px '+EMOJI_FONT; ctx.fillText('💛',172,167);
+    // baseboard + wooden floor
+    ctx.fillStyle='#F3E2C8'; ctx.fillRect(0,330,W,14);
+    ctx.fillStyle='#E8C28A'; ctx.fillRect(0,344,W,H-344);
+    ctx.strokeStyle='rgba(160,110,50,.22)'; ctx.lineWidth=2;
+    for(let r2=0;r2<7;r2++){
+      const y=354+r2*30;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+      for(let x=((r2%2)*90+70);x<W;x+=180){
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+30); ctx.stroke();
+      }
+    }
+    // rug
+    ctx.fillStyle='#FAD1E4';
+    ctx.beginPath(); ctx.ellipse(395,494,215,36,0,0,7); ctx.fill();
+    ctx.strokeStyle='#F3AECB'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.ellipse(395,494,170,26,0,0,7); ctx.stroke();
+    // potted plant
+    ctx.fillStyle='#7BC47F'; ctx.strokeStyle='#57A45E'; ctx.lineWidth=3;
+    [[80,-0.5],[96,0],[112,0.5]].forEach((l)=>{
+      ctx.save(); ctx.translate(l[0],442); ctx.rotate(l[1]);
+      ctx.beginPath(); ctx.ellipse(0,0,10,26,0,0,7); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    });
+    ctx.fillStyle='#D9886A'; ctx.strokeStyle='#B9664C'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(70,468); ctx.lineTo(122,468); ctx.lineTo(112,518); ctx.lineTo(80,518); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // gentle night tint on the room only (Mooshi stays bright and happy)
+    if(pal.night){ ctx.fillStyle='rgba(50,50,110,0.10)'; ctx.fillRect(0,0,W,H); }
+  }
+
+  drawBowl(ctx){
+    if(!this.bowl) return;
+    const bx=this.bowl.x, by=GROUND+4;
+    const left=this.m.seq==='munch'||this.m.seq==='toBowl';
+    const remain=left?Math.max(0,1-this.m.munchN/3-(this.m.seq==='munch'?this.m.munchT/1.65:0)):1;
+    ctx.fillStyle='#F4A9C0'; ctx.strokeStyle='#DE7D9A'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.ellipse(bx,by,36,15,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#FBD1E0';
+    ctx.beginPath(); ctx.ellipse(bx,by-5,33,9,0,0,7); ctx.fill();
+    if(remain>0.03){
+      ctx.font=Math.round(8+22*remain)+'px '+EMOJI_FONT;
+      ctx.fillText(this.bowl.emoji,bx,by-14);
+    }
+  }
+
+  drawMooshi(ctx){
+    const m=this.m;
+    const cy=GROUND-104-m.hopY;
+    // soft shadow
+    const shR=96*(1-Math.min(0.35,m.hopY/260));
+    ctx.fillStyle='rgba(120,90,60,.18)';
+    ctx.beginPath(); ctx.ellipse(m.x,GROUND+16,shR,15,0,0,7); ctx.fill();
+
+    ctx.save();
+    ctx.translate(m.x,cy);
+    let rot=0;
+    if(m.seq==='toBowl'||m.seq==='toHome') rot=Math.sin(m.walk)*0.05;
+    if(m.shakeT>0) rot+=Math.sin(this.t*30)*0.05*(m.shakeT/0.6);
+    ctx.rotate(rot);
+
+    // breathing squash-stretch (slow sin; slower and deeper while napping)
+    // Game Master Lab "wiggle" speeds up (or slows down) breathing, ears & tail
+    const wig=this.lab().wiggle||1;
+    const bf=(this.napping?1.05:2.2)*wig, ba=this.napping?0.055:0.035;
+    let sy=1+ba*Math.sin(this.t*bf), sx=1-0.9*ba*Math.sin(this.t*bf);
+    if(m.hopY>2){ const k=Math.min(0.2,0.05+Math.abs(m.hopV)/2600); sy+=k; sx-=k*0.7; }
+    if(m.landT>0){ const k=m.landT/0.22; sy-=0.14*k; sx+=0.16*k; }
+    if(m.stretchT>=0){ const amp=Math.sin(Math.min(1,m.stretchT/0.95)*Math.PI); sx+=0.2*amp; sy-=0.16*amp; }
+    ctx.scale(sx,sy);
+
+    // stubby tail (flicks sometimes)
+    const flick=m.tail>0?Math.sin(this.t*24*wig)*0.5*(m.tail/0.4):0;
+    ctx.save();
+    ctx.translate(96,16); ctx.rotate(0.55+flick);
+    ctx.fillStyle='#F6E3CB'; ctx.strokeStyle='#E0C3A0'; ctx.lineWidth=3;
+    rr(ctx,-8,-36,16,38,8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#F3B8C8';
+    ctx.beginPath(); ctx.arc(0,-37,9,0,7); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // stubby feet
+    ctx.fillStyle='#F2DFC4'; ctx.strokeStyle='#E0C3A0'; ctx.lineWidth=3;
+    rr(ctx,-62,80,44,26,12); ctx.fill(); ctx.stroke();
+    rr(ctx,18,80,44,26,12); ctx.fill(); ctx.stroke();
+
+    // round ears (wiggle sometimes)
+    const ew=m.ear>0?Math.sin(this.t*26*wig)*0.22*(m.ear/0.5):0;
+    this.drawEar(ctx,-72,-64,-1,ew);
+    this.drawEar(ctx,72,-64,1,ew);
+
+    // big soft round body
+    ctx.fillStyle='#FFF6E7'; ctx.strokeStyle='#EAD3AE'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.ellipse(0,0,100,92,0,0,7); ctx.fill(); ctx.stroke();
+
+    // muted spots
+    ctx.fillStyle='#F0DCC0';
+    ctx.beginPath(); ctx.ellipse(-52,38,24,18,0.5,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(50,-42,19,15,-0.4,0,7); ctx.fill();
+    ctx.fillStyle='#F5E5CE';
+    ctx.beginPath(); ctx.ellipse(42,54,16,12,0.2,0,7); ctx.fill();
+
+    // tiny horns
+    ctx.fillStyle='#F7E6C4'; ctx.strokeStyle='#D9BE93'; ctx.lineWidth=3;
+    [[-30,-1],[30,1]].forEach((h)=>{
+      ctx.beginPath();
+      ctx.moveTo(h[0]-9,h[1]-84);
+      ctx.quadraticCurveTo(h[0]+h[1]*6,h[1]-104,h[0]+h[1]*2,h[1]-108);
+      ctx.quadraticCurveTo(h[0]+h[1]*4,h[1]-98,h[0]+9,h[1]-84);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+
+    // face: big eyes that blink + track
+    const openK=this.napping?0:this.blinkK();
+    for(const side of [-1,1]){
+      const ex=side*34, ey=-20;
+      if(openK>0.18){
+        ctx.fillStyle='#FFFFFF'; ctx.strokeStyle='#E3CDB0'; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.ellipse(ex,ey,17,19*openK,0,0,7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#4A4458';
+        ctx.beginPath(); ctx.arc(ex+m.look.x,ey+m.look.y*0.8*openK,8.5,0,7); ctx.fill();
+        ctx.fillStyle='#FFFFFF';
+        ctx.beginPath(); ctx.arc(ex+m.look.x-3,ey+m.look.y*0.8*openK-3,2.8,0,7); ctx.fill();
+      }else{
+        ctx.strokeStyle='#4A4458'; ctx.lineWidth=3.5; ctx.lineCap='round';
+        ctx.beginPath(); ctx.arc(ex,ey-2,10,Math.PI*0.15,Math.PI*0.85); ctx.stroke();
+        ctx.lineCap='butt';
+      }
+    }
+
+    // pink blush cheeks
+    ctx.fillStyle='rgba(249,168,212,.55)';
+    ctx.beginPath(); ctx.ellipse(-60,6,13,8,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(60,6,13,8,0,0,7); ctx.fill();
+
+    // muzzle + mouth
+    ctx.fillStyle='#FFEFD9'; ctx.strokeStyle='#EBD3AC'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.ellipse(0,26,30,21,0,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#D98A9C';
+    ctx.beginPath(); ctx.ellipse(-8,20,3.4,4.6,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(8,20,3.4,4.6,0,0,7); ctx.fill();
+    if(m.seq==='munch'){
+      const open=Math.abs(Math.sin(m.munchT/0.55*Math.PI));
+      ctx.fillStyle='#B4636F';
+      ctx.beginPath(); ctx.ellipse(0,38,9*open+1,7*open+1,0,0,7); ctx.fill();
+    }else{
+      ctx.strokeStyle='#B4636F'; ctx.lineWidth=3; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(0,30,9,Math.PI*0.15,Math.PI*0.85); ctx.stroke();
+      ctx.lineCap='butt';
+    }
+
+    // cosmetics drawn OVER Mooshi
+    const eq=this.hooks.equip();
+    if(eq.acc==='glasses') this.drawGlasses(ctx);
+    if(eq.acc==='bowtie')  this.drawBowtie(ctx);
+    if(eq.acc==='scarf')   this.drawScarf(ctx);
+    if(eq.hat==='party')   this.drawPartyHat(ctx);
+    if(eq.hat==='flower')  this.drawFlower(ctx);
+    if(eq.hat==='beanie')  this.drawBeanie(ctx);
+    if(eq.hat==='crown')   this.drawCrown(ctx);
+
+    ctx.restore();
+  }
+  blinkK(){
+    if(this.m.blink<=0) return 1;
+    const phase=1-this.m.blink/0.24;           // 0..1
+    return Math.max(0,1-Math.sin(Math.PI*Math.min(1,Math.max(0,phase)))*1.15);
+  }
+  drawEar(ctx,x,y,side,wig){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(side*0.35+wig);
+    ctx.fillStyle='#FFF6E7'; ctx.strokeStyle='#EAD3AE'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(0,0,26,0,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#F9C5D6';
+    ctx.beginPath(); ctx.arc(0,0,13,0,7); ctx.fill();
+    ctx.restore();
+  }
+  drawGlasses(ctx){
+    ctx.strokeStyle='#8B5E3C'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(-34,-20,19,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(34,-20,19,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-16,-26); ctx.quadraticCurveTo(0,-32,16,-26); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-53,-22); ctx.lineTo(-70,-28); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(53,-22); ctx.lineTo(70,-28); ctx.stroke();
+    ctx.fillStyle='rgba(190,225,255,.25)';
+    ctx.beginPath(); ctx.arc(-34,-20,17,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(34,-20,17,0,7); ctx.fill();
+  }
+  drawBowtie(ctx){
+    ctx.fillStyle='#F472B6'; ctx.strokeStyle='#DB2777'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-26,58); ctx.lineTo(-26,78); ctx.lineTo(-5,68); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(26,58); ctx.lineTo(26,78); ctx.lineTo(5,68); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,68,6.5,0,7); ctx.fill(); ctx.stroke();
+  }
+  drawScarf(ctx){
+    ctx.fillStyle='#6EE7B7'; ctx.strokeStyle='#2FB08A'; ctx.lineWidth=3;
+    rr(ctx,-58,46,116,17,9); ctx.fill(); ctx.stroke();
+    rr(ctx,14,56,24,38,9); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='#2FB08A'; ctx.lineWidth=2.5;
+    for(let i=0;i<3;i++){
+      ctx.beginPath(); ctx.moveTo(19+i*7,94); ctx.lineTo(19+i*7,101); ctx.stroke();
+    }
+  }
+  drawPartyHat(ctx){
+    const hy=-82;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-27,hy); ctx.lineTo(27,hy); ctx.lineTo(7,hy-58); ctx.closePath();
+    ctx.fillStyle='#F9A8D4'; ctx.fill();
+    ctx.clip();
+    ctx.fillStyle='#FDE68A'; ctx.fillRect(-28,hy-24,56,11);
+    ctx.fillStyle='#A7F3D0'; ctx.fillRect(-28,hy-42,56,9);
+    ctx.restore();
+    ctx.strokeStyle='#DB2777'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-27,hy); ctx.lineTo(27,hy); ctx.lineTo(7,hy-58); ctx.closePath(); ctx.stroke();
+    ctx.fillStyle='#FDE68A'; ctx.strokeStyle='#F59E0B'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(7,hy-62,7,0,7); ctx.fill(); ctx.stroke();
+  }
+  drawFlower(ctx){
+    ctx.fillStyle='#F9A8D4'; ctx.strokeStyle='#DB2777'; ctx.lineWidth=2.5;
+    for(let i=0;i<6;i++){
+      const a=i/6*Math.PI*2;
+      ctx.beginPath(); ctx.arc(-86+Math.cos(a)*10,-80+Math.sin(a)*10,7.5,0,7); ctx.fill(); ctx.stroke();
+    }
+    ctx.fillStyle='#FDE047'; ctx.strokeStyle='#F59E0B';
+    ctx.beginPath(); ctx.arc(-86,-80,6.5,0,7); ctx.fill(); ctx.stroke();
+  }
+  drawBeanie(ctx){
+    ctx.fillStyle='#C4B5FD'; ctx.strokeStyle='#8B5CF6'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,-80,40,Math.PI,0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#A78BFA';
+    rr(ctx,-41,-84,82,14,7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#FDF2F9'; ctx.strokeStyle='#C4B5FD'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(0,-121,8,0,7); ctx.fill(); ctx.stroke();
+  }
+  drawCrown(ctx){
+    ctx.fillStyle='#FCD34D'; ctx.strokeStyle='#D97706'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(-26,-84); ctx.lineTo(-26,-110); ctx.lineTo(-13,-94);
+    ctx.lineTo(0,-114); ctx.lineTo(13,-94); ctx.lineTo(26,-110); ctx.lineTo(26,-84);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#F87171';
+    [[-13,-90],[0,-90],[13,-90]].forEach((g)=>{
+      ctx.beginPath(); ctx.arc(g[0],g[1],3.4,0,7); ctx.fill();
+    });
+  }
+
+  drawBall(ctx){
+    const b=this.ball;
+    const fl=GROUND+20;
+    ctx.fillStyle='rgba(120,90,60,.15)';
+    ctx.beginPath(); ctx.ellipse(b.x,fl+8,b.r*0.85,6,0,0,7); ctx.fill();
+    ctx.save();
+    ctx.translate(b.x,b.y);
+    ctx.rotate(this.t*2);
+    ctx.fillStyle='#F87171'; ctx.strokeStyle='#DC2626'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,b.r,0,7); ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0,0,b.r-1.5,0,7); ctx.clip();
+    ctx.fillStyle='#FFFFFF'; ctx.fillRect(-b.r,-5,b.r*2,10);
+    ctx.fillStyle='#FDE68A'; ctx.beginPath(); ctx.arc(0,-b.r*0.55,b.r*0.34,0,7); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+
+  drawButter(ctx){
+    const b=this.butter;
+    const flap=0.25+0.75*Math.abs(Math.sin(this.t*14));
+    ctx.save();
+    ctx.translate(b.x,b.y);
+    if(b.vx<0) ctx.scale(-1,1);
+    ctx.rotate(Math.sin(this.t*3+b.ph)*0.14);
+    ctx.fillStyle='#F9A8D4';
+    ctx.beginPath(); ctx.ellipse(-9,-4,11*flap,8,-0.5,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(9,-4,11*flap,8,0.5,0,7); ctx.fill();
+    ctx.fillStyle='#7C6F64';
+    rr(ctx,-2.5,-9,5,17,2.5); ctx.fill();
+    ctx.strokeStyle='#7C6F64'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(-1,-9); ctx.lineTo(-5,-15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(1,-9); ctx.lineTo(5,-15); ctx.stroke();
+    ctx.restore();
+  }
+
+  drawBubbles(ctx){
+    for(const b of this.bubbles){
+      ctx.strokeStyle=b.hue<0.33?'rgba(249,168,212,.95)':(b.hue<0.66?'rgba(147,197,253,.95)':'rgba(167,243,208,.95)');
+      ctx.lineWidth=2.5;
+      ctx.fillStyle='rgba(255,255,255,.16)';
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,7); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r*0.62,Math.PI*1.05,Math.PI*1.45); ctx.stroke();
+    }
+  }
+
+  drawShine(ctx){
+    const k=Math.min(1,Math.max(0,this.shine));
+    const x0=this.m.x-170+k*340;
+    ctx.save();
+    ctx.globalAlpha=0.55*Math.sin(k*Math.PI);
+    ctx.translate(x0,GROUND-110); ctx.rotate(-0.5);
+    const g=ctx.createLinearGradient(-30,0,30,0);
+    g.addColorStop(0,'rgba(255,255,255,0)');
+    g.addColorStop(0.5,'rgba(255,255,255,.95)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(-26,-170,52,340);
+    ctx.restore();
+  }
+
+  drawParts(ctx){
+    for(const p of this.parts){
+      const k=Math.max(0,Math.min(1,p.t/p.life));
+      ctx.globalAlpha=k;
+      if(p.dot){
+        ctx.fillStyle=p.c;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
+      }else{
+        ctx.font=p.size+'px '+EMOJI_FONT;
+        ctx.fillText(p.e,p.x,p.y);
+      }
+      ctx.globalAlpha=1;
+    }
+  }
+
+  drawSpeech(ctx){
+    if(!this.speech) return;
+    const m=this.m;
+    const aIn=Math.min(1,(this.speech.max-this.speech.t)*6);
+    const aOut=Math.min(1,this.speech.t/0.3);
+    const a=Math.max(0,Math.min(1,aIn*aOut));
+    if(a<=0) return;
+    ctx.globalAlpha=a;
+    ctx.font='bold 21px '+KID_FONT;
+    const tw=ctx.measureText(this.speech.txt).width;
+    const bw=Math.min(W-40,tw+30), bh=44;
+    const bx=m.x, by=GROUND-104-m.hopY-92-46-bh/2;
+    const x0=bx-bw/2, y0=by-bh/2;
+    ctx.fillStyle='rgba(255,255,255,.96)'; ctx.strokeStyle='#E8D5B5'; ctx.lineWidth=3;
+    rr(ctx,x0,y0,bw,bh,16); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx-8,y0+bh-1); ctx.lineTo(bx+10,y0+bh-1); ctx.lineTo(bx,y0+bh+13);
+    ctx.closePath(); ctx.fillStyle='rgba(255,255,255,.96)'; ctx.fill();
+    ctx.fillStyle='#6B4F3A';
+    ctx.fillText(this.speech.txt,bx,by+1);
+    ctx.globalAlpha=1;
+  }
+
+  drawTimeTag(ctx,pal){
+    const txt=(TIME_ICON[pal.name]||'🕒')+' '+pal.name;
+    ctx.font='bold 15px '+KID_FONT;
+    const tw=ctx.measureText(txt).width+22;
+    ctx.fillStyle='rgba(255,255,255,.72)';
+    rr(ctx,14,14,tw,30,15); ctx.fill();
+    ctx.fillStyle='#6B4F3A';
+    ctx.fillText(txt,14+tw/2,30);
+  }
+}
+
+/* ============================ PROFILE / SAVE ============================ */
+function defaultProfile(){
+  return {
+    xp:0, fullness:60, unlocked:[], hat:'', acc:'',
+    naps:0, pokes:0, feeds:0, sound:true, lastSeen:0,
+    lab:defaultLab()
+  };
+}
+function loadProfile(){
+  const d=defaultProfile();
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p=JSON.parse(raw);
+      if(p&&typeof p==='object'){
+        Object.assign(d,p);
+        d.unlocked=Array.isArray(p.unlocked)?p.unlocked.slice():[];
+        d.lab=Object.assign(defaultLab(),p.lab||{}); // old saves simply get fresh Lab defaults
+        if(!Number.isFinite(d.xp)||d.xp<0) d.xp=0;
+        if(!Number.isFinite(d.fullness)) d.fullness=60;
+        d.fullness=Math.max(0,Math.min(100,d.fullness));
+        // deterministic unlock reconciliation with friendship level
+        const lv=levelFromXp(d.xp);
+        for(const c of COSMETICS){
+          if(c.lv<=lv&&d.unlocked.indexOf(c.id)<0) d.unlocked.push(c.id);
+        }
+        if(d.hat&&d.unlocked.indexOf(d.hat)<0) d.hat='';
+        if(d.acc&&d.unlocked.indexOf(d.acc)<0) d.acc='';
+      }
+    }
+  }catch(e){}
+  return d;
+}
+
+/* ============================ VUE APP ============================ */
+const app = Vue.createApp({
+  data(){
+    return {
+      version:'v1.1',
+      screen:'menu', panel:null, paused:false,
+      profile: loadProfile(),
+      scene:null,
+      sceneState:{busy:false,napping:false,ball:false,cleaning:false},
+      foods:FOODS,
+      toasts:[], toastSeq:0, confetti:[],
+      resetArmed:false, welcomePending:false, decayAcc:0,
+      labCode:'', labMsg:'', labMsgOk:false, labReturn:'menu',
+      LAB_DEFS, LAB_THEMES
+    };
+  },
+  computed:{
+    level(){ return levelFromXp(this.profile.xp||0); },
+    levelPct(){
+      const L=this.level, a=xpForLevel(L), b=xpForLevel(L+1);
+      const x=this.profile.xp||0;
+      return Math.max(0,Math.min(100,Math.round((x-a)/(b-a)*100)));
+    },
+    fullnessPct(){ return Math.round(Math.max(0,Math.min(100,this.profile.fullness))); },
+    fullnessLabel(){
+      const f=this.profile.fullness;
+      if(f>=100) return 'Full and happy 💤';
+      if(f>=70)  return 'Cozy and content 😊';
+      return 'Would enjoy a snack 🍎';
+    },
+    statsLine(){ return 'Friendship Level '+this.level+' · 🍎 fed '+this.profile.feeds+' times'; },
+    statsLine2(){ return '😴 '+this.profile.naps+' naps · 👆 '+this.profile.pokes+' boing-pokes'; },
+    dressView(){
+      const mk=(slot)=>{
+        return COSMETICS.filter(c=>c.slot===slot).map(c=>{
+          return {c:c, locked:this.profile.unlocked.indexOf(c.id)<0, on:this.profile[slot]===c.id};
+        });
+      };
+      return {hats:mk('hat'), accs:mk('acc'), hatNone:!this.profile.hat, accNone:!this.profile.acc};
+    },
+    appBg(){
+      const s=this.profile.lab.theme;
+      if(s==='sunset') return {background:'linear-gradient(180deg,#fda4af 0%,#fdba74 55%,#fde68a 100%)'};
+      if(s==='night')  return {background:'linear-gradient(180deg,#1e1b4b 0%,#3730a3 55%,#64748b 100%)'};
+      return {};
+    },
+    inkTitle(){
+      return this.profile.lab.theme==='night'
+        ? 'text-white drop-shadow-[0_3px_0_rgba(0,0,0,.25)]'
+        : 'text-rose-600 drop-shadow-[0_2px_0_rgba(255,255,255,.8)]';
+    },
+    inkSub(){ return this.profile.lab.theme==='night'?'text-white/90 drop-shadow':'text-slate-700'; },
+    inkFoot(){ return this.profile.lab.theme==='night'?'text-white/80':'text-slate-800/70'; },
+    labReadout(){
+      const l=this.profile.lab;
+      return 'now → snackTimer ×'+l.snackTimer+' · boing ×'+l.boing+' · friendXp ×'+l.friendXp+' · wiggle ×'+l.wiggle;
+    }
+  },
+  methods:{
+    /* ------- navigation ------- */
+    go(screen){
+      SFX.play('click');
+      if(this.screen==='home'&&screen!=='home'&&this.scene){
+        this.scene.stop(); this.panel=null; this.paused=false;
+      }
+      this.screen=screen;
+    },
+    startHome(){
+      this.go('home');
+      this.$nextTick(()=>{
+        if(!this.scene) this.scene=this.makeScene();
+        const cv=this.$refs.cv;
+        if(!cv) return;
+        this.scene.attach(cv);
+        this.scene.start();
+        if(this.welcomePending){
+          this.welcomePending=false;
+          this.scene.say('Mooshi napped happily waiting for you! 😴💛',4.5);
+          this.scene.celebrate();
+          this.pushToast('Mooshi napped happily waiting for you!','😴');
+        }
+      });
+    },
+    quitToMenu(){
+      if(this.scene) this.scene.stop();
+      this.paused=false; this.panel=null;
+      this.go('menu');
+    },
+    makeScene(){
+      const self=this;
+      return new Scene({
+        lab:()=>self.profile.lab,
+        xp:(k)=>self.gainXp(k),
+        decay:(dt)=>self.decayTick(dt),
+        feedAllowed:()=>self.profile.fullness<100,
+        onEaten:(yum)=>{
+          self.profile.fullness=Math.min(100,(self.profile.fullness||0)+yum);
+          self.profile.feeds++;
+          self.save();
+        },
+        setBusy:(v)=>{ self.sceneState.busy=v; },
+        setNap:(v)=>{
+          self.sceneState.napping=v;
+          if(!v){ self.profile.naps++; self.save(); }
+        },
+        setBall:(v)=>{ self.sceneState.ball=v; },
+        setClean:(v)=>{ self.sceneState.cleaning=v; if(!v) self.save(); },
+        equip:()=>({hat:self.profile.hat||'',acc:self.profile.acc||''}),
+        poked:()=>{ self.profile.pokes++; self.gainXp('poke'); },
+        toast:(m,e)=>self.pushToast(m,e)
+      });
+    },
+
+    /* ------- Game Master Lab ------- */
+    openLab(from){
+      SFX.play('click');
+      this.labReturn=(from==='pause'&&this.scene&&this.screen==='home')?'home':'menu';
+      if(this.labReturn==='home'){
+        this.paused=true;
+        this.scene.stop(); // rAF loop fully stops while the Lab is open
+      }
+      this.labMsg=''; this.screen='lab';
+    },
+    closeLab(){
+      SFX.play('click');
+      if(this.labReturn==='home'&&this.scene){
+        this.screen='home'; // still paused — the pause overlay welcomes you back
+        this.$nextTick(()=>{
+          if(this.scene&&this.$refs.cv){
+            this.scene.attach(this.$refs.cv); // canvas was re-created by v-if
+            this.scene.render(); // paint one still frame behind the pause overlay
+          }
+        });
+      } else {
+        this.labReturn='menu';
+        this.screen='menu';
+      }
+    },
+    setLab(key,ev){
+      const d=LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v=parseFloat(ev.target.value); if(!isFinite(v)) v=d.def;
+      v=Math.max(d.min,Math.min(d.max,v));
+      this.profile.lab[key]=Math.round(v*100)/100;
+      this.save();
+    },
+    pickTheme(key){ this.profile.lab.theme=key; this.save(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.profile.lab, defaultLab()); // keep object identity (a running scene holds this ref)
+      this.save(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even for cows!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-moo. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.profile.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like boing = 2'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: boing = 2'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off to infinity! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const clamped=Math.max(def.min,Math.min(def.max,val));
+          const snapped=this.fmtNum(def.min+Math.round((clamped-def.min)/def.step)*def.step);
+          this.profile.lab[name]=snapped;
+          this.save(); SFX.play('level');
+          let msg = clamped!==val
+            ? '✨ '+name+' wanted to be '+this.fmtNum(val)+', but I kept it safe at '+snapped+' (allowed: '+def.min+' to '+def.max+').'
+            : '✨ Done! '+name+' = '+snapped+'. Go play and feel it!';
+          if(clamped===val && snapped!==clamped) msg='✨ Done! I snapped '+name+' to the nearest step: '+snapped+'.';
+          this.labMsg=msg;
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like boing = 1.5';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ------- panels & interactions ------- */
+    openPanel(name){
+      SFX.play('click');
+      this.panel=(this.panel===name)?null:name;
+    },
+    feedFood(f){
+      if(this.sceneState.napping){ this.pushToast('Mooshi is napping 💤','😴'); return; }
+      if(this.sceneState.busy||!this.scene) return;
+      SFX.play('click');
+      this.scene.feed(f);
+    },
+    cleanNow(){
+      if(!this.scene) return;
+      if(this.sceneState.napping){ this.pushToast('Mooshi is napping 💤','😴'); return; }
+      if(this.sceneState.busy) return;
+      SFX.play('click');
+      this.scene.startClean();
+    },
+    ballNow(){
+      if(!this.scene) return;
+      if(this.sceneState.napping){ this.pushToast('Mooshi is napping 💤','😴'); return; }
+      if(this.sceneState.busy) return;
+      SFX.play('click');
+      this.scene.toggleBall();
+    },
+    napNow(){
+      if(!this.scene) return;
+      if(this.sceneState.busy){ this.pushToast('Mooshi is munching 🍎','😋'); return; }
+      SFX.play('click');
+      this.scene.toggleNap();
+    },
+    equipItem(it){
+      if(it.locked){
+        SFX.play('full');
+        this.pushToast('Unlocks at Friendship Level '+it.c.lv+' 💛','🔒');
+        return;
+      }
+      const slot=it.c.slot;
+      this.profile[slot]=(this.profile[slot]===it.c.id)?'':it.c.id;
+      SFX.play('click');
+      this.save();
+      if(this.scene) this.scene.sparkleEquip();
+    },
+    equipNone(slot){
+      this.profile[slot]='';
+      SFX.play('click');
+      this.save();
+      if(this.scene) this.scene.sparkleEquip();
+    },
+
+    /* ------- friendship XP (never decays, never resets) ------- */
+    gainXp(kind){
+      const now=performance.now();
+      const cd=(XP_CD[kind]||3)*1000;
+      if(now-(this._xpLast[kind]||-1e9)<cd) return; // no punishment, just no bonus XP
+      this._xpLast[kind]=now;
+      const before=this.level;
+      const xpMul=(this.profile.lab&&this.profile.lab.friendXp)||1;
+      this.profile.xp=(this.profile.xp||0)+Math.max(1,Math.round((XP[kind]||1)*xpMul));
+      const after=this.level;
+      if(this.scene) this.scene.xpPop();
+      if(after>before){
+        SFX.play('level');
+        this.spawnConfetti();
+        for(let L=before+1;L<=after;L++){
+          const c=COSMETICS.find(x=>x.lv===L);
+          if(c){
+            if(this.profile.unlocked.indexOf(c.id)<0){
+              this.profile.unlocked.push(c.id);
+              this.pushToast('New dress-up unlocked: '+c.e+' '+c.name+'!','🎉');
+            }
+          }else{
+            this.pushToast('Friendship Level '+L+'! Mooshi loves you!','💛');
+          }
+        }
+        if(this.scene) this.scene.celebrate();
+      }
+      this.save();
+    },
+    decayTick(dt){
+      this.decayAcc+=dt;
+      const per=FULLNESS_DECAY_S*((this.profile.lab&&this.profile.lab.snackTimer)||1);
+      while(this.decayAcc>=per){
+        this.decayAcc-=per;
+        if(this.profile.fullness>0) this.profile.fullness--;
+      }
+    },
+
+    /* ------- pause ------- */
+    togglePause(){
+      if(this.screen!=='home'||!this.scene) return;
+      this.paused=!this.paused;
+      if(this.paused) this.scene.stop();
+      else this.scene.start();
+      SFX.play('click');
+    },
+
+    /* ------- settings ------- */
+    toggleSound(){
+      this.profile.sound=!this.profile.sound;
+      SFX.on=this.profile.sound;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    armReset(){
+      this.resetArmed=true;
+      clearTimeout(this._ra);
+      this._ra=setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile=defaultProfile();
+      this.resetArmed=false;
+      this.scene=null;
+      this.sceneState={busy:false,napping:false,ball:false,cleaning:false};
+      this.panel=null; this.paused=false;
+      SFX.on=true;
+      this.screen='menu';
+      this.pushToast('Fresh start! Mooshi says hello! 🐮','🌱');
+    },
+
+    /* ------- misc ------- */
+    save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(this.profile)); }catch(e){} },
+    saveLastSeen(){
+      this.profile.lastSeen=Date.now();
+      this.save();
+    },
+    pushToast(msg,emoji){
+      const id=++this.toastSeq;
+      this.toasts.push({id:id,msg:msg,emoji:emoji||'🐮'});
+      setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600);
+    },
+    spawnConfetti(){
+      const em=['⭐','🎉','💗','💛','🌸','✨'];
+      const out=[];
+      for(let i=0;i<28;i++){
+        out.push({ e:em[(Math.random()*em.length)|0],
+          left:Math.random()*96, dur:(2.2+Math.random()*1.6),
+          delay:Math.random()*0.7, size:16+Math.random()*18 });
+      }
+      this.confetti=out;
+      clearTimeout(this._cf);
+      this._cf=setTimeout(()=>{ this.confetti=[]; },4200);
+    }
+  },
+  created(){
+    this._xpLast={};
+    const ls=Number(this.profile.lastSeen||0);
+    if(ls>0&&Date.now()-ls>WELCOME_AWAY_MS) this.welcomePending=true;
+  },
+  mounted(){
+    SFX.on=this.profile.sound;
+    window.addEventListener('keydown',(e)=>{
+      if(this.screen==='lab'&&e.key==='Escape'){ e.preventDefault(); this.closeLab(); return; }
+      if(this.screen!=='home') return;
+      if(e.key===' '){
+        e.preventDefault();
+        if(!this.paused&&this.scene) this.scene.pokeCenter();
+      }else if(e.key&&e.key.indexOf('Arrow')===0){
+        e.preventDefault();
+      }else if(e.key==='p'||e.key==='P'||e.key==='Escape'){
+        e.preventDefault();
+        this.togglePause();
+      }
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden){
+        this.saveLastSeen();
+        if(this.scene) this.scene.stop();   // RAF loop must stop when tab is hidden
+      }else if(this.screen==='home'&&!this.paused&&this.scene){
+        this.scene.start();
+      }
+    });
+    window.addEventListener('beforeunload',()=>this.saveLastSeen());
+    setInterval(()=>{
+      if(this.screen==='home'&&!document.hidden) this.saveLastSeen();
+    },15000);
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    this.pushToast('Welcome! Mooshi is so happy 🐮💛','👋');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>

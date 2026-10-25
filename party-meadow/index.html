@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Party Meadow 🌼</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌼</text></svg>">
+<!--
+  PARTY MEADOW — a kid-friendly mini-game party pack (6 games in a sunny meadow).
+  Part of the free, MIT-licensed "Play & Code" collection (see ../LICENSE).
+  Parent notes:
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * No ads, no links out, no accounts, no purchases, no loot boxes, no energy timers.
+  * Siblings take turns on one PC and chase each other's best scores (one shared save).
+  * The 🛠️ Game Master Lab lets kids tune real game constants and type real (tiny) code.
+  * Tweak difficulty by editing GAMES thresholds / engine constants below (see README.md).
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#a5e7ff;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>🌼 Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#a5e7ff 0%,#d9f6ff 40%,#eaf9d8 75%,#cdf0b0 100%);font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  @keyframes starPop{to{transform:scale(1)}}
+  .star-btn{font-size:3rem;display:inline-block;transform:scale(0);line-height:1}
+  .star-on{animation:starPop .45s cubic-bezier(.34,1.56,.64,1) forwards}
+  .star-off{transform:scale(1);opacity:.22;filter:grayscale(1)}
+  @keyframes fallVh{to{transform:translateY(118vh) rotate(420deg)}}
+  .confetti{position:absolute;top:-60px;animation:fallVh linear forwards;pointer-events:none}
+  @keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+  .shake{animation:shakeX .3s}
+  @keyframes pulseSoft{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  .pulse-tag{animation:pulseSoft 1s infinite;display:inline-block}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  /* --- drifting clouds + flower bed (meadow scenery) --- */
+  @keyframes drift{from{left:-220px}to{left:112%}}
+  .cloud{position:absolute;width:130px;height:44px;background:rgba(255,255,255,.92);border-radius:999px;animation:drift linear infinite}
+  .cloud::before,.cloud::after{content:'';position:absolute;background:inherit;border-radius:50%}
+  .cloud::before{width:58px;height:58px;left:22px;top:-28px}
+  .cloud::after{width:42px;height:42px;left:66px;top:-16px}
+  .flowerbed{position:absolute;bottom:-4px;left:0;right:0;text-align:center;white-space:nowrap;overflow:hidden;font-size:26px;line-height:1;opacity:.9;pointer-events:none}
+  .flowerbed span{display:inline-block;animation:bob 3.2s ease-in-out infinite;margin:0 8px}
+  /* --- hub flower signs --- */
+  .flower-sign{position:relative;border-radius:1.4rem;padding:1rem .5rem .8rem;text-align:center;border:4px solid rgba(255,255,255,.85);box-shadow:0 6px 0 rgba(0,0,0,.14),0 12px 24px rgba(31,45,60,.13);cursor:pointer;transition:transform .16s,box-shadow .16s;font-family:inherit}
+  .flower-sign:hover{transform:translateY(-7px) rotate(-1.2deg) scale(1.03);box-shadow:0 10px 0 rgba(0,0,0,.14),0 16px 28px rgba(31,45,60,.17)}
+  .flower-sign:active{transform:scale(.95)}
+  @keyframes sway{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+  .sign-emoji{display:inline-block;font-size:3rem;line-height:1;animation:sway 2.6s ease-in-out infinite}
+  .sign-bunny{background:linear-gradient(180deg,#ffe4f1,#ffc9e3)}
+  .sign-memory{background:linear-gradient(180deg,#ede9fe,#ddd6fe)}
+  .sign-song{background:linear-gradient(180deg,#fef9c3,#fde68a)}
+  .sign-fruit{background:linear-gradient(180deg,#dcfce7,#bbf7d0)}
+  .sign-odd{background:linear-gradient(180deg,#dbeafe,#bfdbfe)}
+  .sign-balloon{background:linear-gradient(180deg,#fee2e2,#fecaca)}
+  /* --- Memory Grove cards (3D flip) --- */
+  .mg-card{position:relative;aspect-ratio:1/1;border:0;background:transparent;padding:0;cursor:pointer;perspective:640px}
+  .mg-inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .35s}
+  .mg-card.flipped .mg-inner{transform:rotateY(180deg)}
+  .mg-face{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:.9rem;box-shadow:0 4px 0 rgba(0,0,0,.14)}
+  .mg-front{background:linear-gradient(180deg,#a78bfa,#7c3aed);color:#fff;font-size:clamp(20px,6vw,30px)}
+  .mg-back{background:linear-gradient(180deg,#fffbeb,#fef3c7);transform:rotateY(180deg);font-size:clamp(26px,7vw,42px)}
+  @keyframes matchPop{0%{transform:rotateY(180deg) scale(1)}50%{transform:rotateY(180deg) scale(1.15)}100%{transform:rotateY(180deg) scale(1)}}
+  .mg-card.matched .mg-inner{animation:matchPop .45s}
+  .mg-card.matched .mg-back{outline:4px solid #4ade80}
+  /* --- Flower Song flowers --- */
+  .flower{position:relative;width:118px;height:136px;border:0;background:transparent;cursor:pointer;transition:transform .12s;padding:0}
+  .flower:active{transform:scale(.93)}
+  .pw{position:absolute;left:50%;top:54px;width:0;height:0;transition:transform .15s,filter .15s}
+  .petal{position:absolute;left:-21px;top:-30px;width:42px;height:60px;border-radius:50% 50% 50% 50% / 55% 55% 45% 45%;box-shadow:inset 0 -4px 0 rgba(0,0,0,.08)}
+  .petal:nth-child(1){transform:rotate(0deg) translateY(-36px)}
+  .petal:nth-child(2){transform:rotate(60deg) translateY(-36px)}
+  .petal:nth-child(3){transform:rotate(120deg) translateY(-36px)}
+  .petal:nth-child(4){transform:rotate(180deg) translateY(-36px)}
+  .petal:nth-child(5){transform:rotate(240deg) translateY(-36px)}
+  .petal:nth-child(6){transform:rotate(300deg) translateY(-36px)}
+  .fl-pink .petal{background:linear-gradient(180deg,#fbcfe8,#f472b6)}
+  .fl-purple .petal{background:linear-gradient(180deg,#ddd6fe,#a78bfa)}
+  .fl-blue .petal{background:linear-gradient(180deg,#bfdbfe,#60a5fa)}
+  .fl-amber .petal{background:linear-gradient(180deg,#fde68a,#f59e0b)}
+  .core{position:absolute;left:50%;top:54px;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff8d6,#fbbf24);box-shadow:0 3px 0 rgba(0,0,0,.14);z-index:2}
+  .core::before{content:'';position:absolute;width:6px;height:8px;border-radius:50%;background:#713f12;top:15px;left:13px;box-shadow:16px 0 #713f12}
+  .core::after{content:'';position:absolute;width:13px;height:6px;border:2px solid #713f12;border-top:0;border-radius:0 0 12px 12px;left:16px;top:23px}
+  .flower.lit .pw{transform:scale(1.16);filter:brightness(1.22) drop-shadow(0 0 16px rgba(255,255,255,.95))}
+  .flower.lit{transform:scale(1.07)}
+  .fname{position:absolute;bottom:2px;left:0;right:0;font-weight:800;font-size:14px;color:#4c1d95}
+  /* --- Odd One Out cells --- */
+  .odd-cell{border:0;background:#fff;border-radius:.8rem;box-shadow:0 4px 0 rgba(0,0,0,.13);cursor:pointer;display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;transition:transform .1s;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif}
+  .odd-cell:hover{transform:scale(1.07)}
+  .odd-cell:active{transform:scale(.94)}
+  /* --- Game Master Lab --- */
+  .lab-slider{width:100%;height:44px;accent-color:#f59e0b;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app" class="min-h-screen font-kid select-none">
+<div class="min-h-screen" :style="appBg">
+
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none px-4">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ MEADOW SCENERY (clouds + flowers, always behind everything) ============ -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none z-0" :style="sceneryStyle">
+    <div v-for="(c,i) in cloudDrops" :key="'cd'+i" class="cloud"
+         :style="{top:c.top+'%',animationDuration:c.dur+'s',animationDelay:'-'+c.delay+'s',transform:'scale('+c.s+')'}"></div>
+    <div class="flowerbed" v-if="screen!=='game'">
+      <span v-for="(f,i) in bedFlowers" :key="'bf'+i" :style="{animationDelay:(i*0.3)+'s'}">{{f}}</span>
+    </div>
+  </div>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="relative z-10 min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center">
+    <div class="text-6xl md:text-7xl flex flex-wrap justify-center gap-x-1 gap-y-3 max-w-full">
+      <span class="bob">🌼</span><span class="bob" style="animation-delay:.2s">🐰</span><span class="bob" style="animation-delay:.4s">🎈</span><span class="bob" style="animation-delay:.6s">🍎</span><span class="bob" style="animation-delay:.8s">🌸</span><span class="bob" style="animation-delay:1s">🔍</span>
+    </div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold text-white drop-shadow-[0_3px_0_rgba(0,0,0,.25)]">Party Meadow</h1>
+      <p class="text-white font-bold mt-2 text-lg drop-shadow">Six little games in one sunny meadow!</p>
+    </div>
+    <div class="panel font-extrabold text-amber-600">⭐ {{meadowStars}} Meadow Stars</div>
+    <div class="flex flex-col gap-3 w-72">
+      <button class="btn btn-green btn-xl" @click="go('meadow')">▶ Play!</button>
+      <button class="btn btn-amber btn-xl" @click="go('family')">🏆 Family Scores</button>
+      <button class="btn btn-purple btn-xl" @click="openLab('menu')">🛠️ Game Master</button>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="text-white/90 text-xs font-bold mt-2 drop-shadow">🌱 offline · no ads · just fun</div>
+    <div class="text-xs font-bold absolute bottom-3 left-0 right-0" :class="isNight?'text-white/80':'text-slate-800/70'">🌼 Play &amp; Code · made with ❤️ for young coders · v1.1</div>
+  </div>
+
+  <!-- ============ MEADOW HUB (game picker) ============ -->
+  <div v-else-if="screen==='meadow'" class="relative z-10 max-w-4xl mx-auto p-4 md:p-6 min-h-screen flex flex-col gap-4">
+    <div class="flex items-center gap-3 flex-wrap">
+      <button class="btn btn-white" @click="go('menu')">⬅ Menu</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow flex-1">🌼 The Meadow</h1>
+      <button class="btn btn-amber" @click="go('family')">🏆 Scores</button>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <button v-for="(g,gi) in games" :key="g.id" class="flower-sign" :class="'sign-'+g.id" @click="openGame(g.id)">
+        <span class="sign-emoji" :style="{animationDelay:(gi*0.25)+'s'}">{{g.emoji}}</span>
+        <div class="text-lg font-black text-slate-700 mt-1 leading-tight">{{g.name}}</div>
+        <div class="text-sm leading-none my-1">
+          <span v-for="n in 3" :key="n" :class="n <= profile.best[g.id].stars ? '' : 'opacity-20 grayscale'">⭐</span>
+        </div>
+        <div class="text-[11px] font-bold text-slate-500">Best: {{bestText(g.id)}}</div>
+      </button>
+    </div>
+    <div class="panel !p-3 text-center text-sm font-bold text-slate-600">
+      👫 Take turns on this PC — try to beat each other's best scores! One shared meadow, two champions. 🏁
+    </div>
+  </div>
+
+  <!-- ============ GAME SCREEN (intro → play → result) ============ -->
+  <div v-else-if="screen==='game'" class="relative z-10 max-w-4xl mx-auto p-2 md:p-4 min-h-screen flex flex-col gap-3">
+
+    <!-- intro card -->
+    <div v-if="gstate==='intro'" class="flex flex-col items-center justify-center gap-4 flex-1 text-center py-8">
+      <div class="panel !p-6 md:!p-8 flex flex-col items-center gap-3 max-w-sm w-full">
+        <div class="text-7xl"><span class="bob">{{activeDef.emoji}}</span></div>
+        <h2 class="text-3xl font-extrabold text-slate-700">{{activeDef.name}}</h2>
+        <p class="text-sm md:text-base font-bold text-slate-600">{{activeDef.how}}</p>
+        <p class="text-xs font-bold text-slate-500">🎮 {{controlsHint(activeGame)}}</p>
+        <p class="text-[11px] font-bold text-amber-600">{{starHint(activeGame)}}</p>
+        <p class="text-[11px] font-bold text-slate-400">Your best: {{bestText(activeGame)}}</p>
+        <button class="btn btn-green btn-xl mt-1" @click="beginGame">▶ Let's Play!</button>
+      </div>
+    </div>
+
+    <!-- play area -->
+    <template v-else>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button class="btn btn-white !px-3 min-h-[44px]" @click="backToMeadow" title="Back to Meadow">⬅️</button>
+        <div class="panel font-extrabold text-slate-700 flex items-center gap-2">
+          <span class="text-xl">{{activeDef.emoji}}</span> {{activeDef.name}}
+        </div>
+        <button class="btn btn-white !px-3 min-h-[44px]" @click="togglePause" title="Pause (P)">⏸️</button>
+
+        <!-- canvas games: score + time -->
+        <div v-if="isCanvasGame" class="panel flex-1 min-w-[190px] flex items-center gap-2">
+          <span class="text-lg font-black text-emerald-600 tabular-nums">⭐ {{hud.score}}</span>
+          <div class="h-4 flex-1 rounded-full bg-slate-300 overflow-hidden">
+            <div class="h-full rounded-full transition-[width] duration-200"
+                 :class="hud.time<=5 ? 'bg-gradient-to-r from-rose-300 to-rose-500' : 'bg-gradient-to-r from-amber-300 to-amber-500'"
+                 :style="{width:hud.timePct+'%'}"></div>
+          </div>
+          <span class="text-xs font-black text-slate-600 tabular-nums whitespace-nowrap">⏱ {{hud.time}}s</span>
+        </div>
+
+        <!-- memory -->
+        <div v-if="activeGame==='memory'" class="panel flex-1 min-w-[190px] flex items-center justify-around font-black text-slate-600">
+          <span>🃏 Moves: {{hud.moves}}</span><span>🐾 Pairs: {{hud.pairs}}/8</span>
+        </div>
+
+        <!-- song -->
+        <div v-if="activeGame==='song'" class="panel flex-1 min-w-[190px] flex items-center justify-around font-black text-slate-600">
+          <span>🌸 Round: {{hud.round}}</span><span>{{songStatus}}</span>
+        </div>
+
+        <!-- odd -->
+        <div v-if="activeGame==='odd'" class="panel flex-1 min-w-[190px] flex items-center justify-around font-black text-slate-600">
+          <span>🔍 {{oddRound+1}}/8</span><span class="tabular-nums">⏱ {{oddClock}}s</span>
+        </div>
+      </div>
+
+      <!-- canvas board -->
+      <div v-if="isCanvasGame" class="relative rounded-2xl overflow-hidden shadow-xl ring-4 ring-white/60">
+        <canvas ref="cv" width="1000" height="560" class="w-full block touch-none" @pointerdown="onCanvasPointer"></canvas>
+      </div>
+
+      <!-- fruit catch arrow buttons -->
+      <div v-if="activeGame==='fruit'" class="flex justify-center gap-6">
+        <button class="btn btn-white !px-10 !py-4 text-3xl select-none"
+                @pointerdown.prevent="fruitBtn('L',true)" @pointerup="fruitBtn('L',false)"
+                @pointerleave="fruitBtn('L',false)" @pointercancel="fruitBtn('L',false)">◀️</button>
+        <button class="btn btn-white !px-10 !py-4 text-3xl select-none"
+                @pointerdown.prevent="fruitBtn('R',true)" @pointerup="fruitBtn('R',false)"
+                @pointerleave="fruitBtn('R',false)" @pointercancel="fruitBtn('R',false)">▶️</button>
+      </div>
+
+      <!-- memory board -->
+      <div v-if="activeGame==='memory'" class="panel !p-4 flex justify-center">
+        <div class="grid grid-cols-4 gap-2 md:gap-3 w-full max-w-md">
+          <button v-for="(c,i) in memCards" :key="'m'+i"
+                  class="mg-card" :class="{flipped:c.flipped||c.matched, matched:c.matched}"
+                  @click="memFlip(i)">
+            <div class="mg-inner">
+              <div class="mg-face mg-front">🌸</div>
+              <div class="mg-face mg-back">{{c.emoji}}</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- song board -->
+      <div v-if="activeGame==='song'" class="panel !p-5 flex justify-center">
+        <div class="flex flex-wrap justify-center gap-4 md:gap-8">
+          <button v-for="(f,i) in flowers" :key="'f'+i" class="flower" :class="[f.cls,{lit:songLit===i}]" @click="songTap(i)">
+            <span class="pw"><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span><span class="petal"></span></span>
+            <span class="core"></span>
+            <span class="fname">{{f.name}}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- odd board -->
+      <div v-if="activeGame==='odd'" class="panel !p-4 flex justify-center mx-auto w-full max-w-xl">
+        <div class="grid gap-1.5" :style="{gridTemplateColumns:'repeat('+oddCols+',minmax(0,1fr))',maxWidth:(oddCols*78)+'px'}">
+          <button v-for="(cell,i) in oddCells" :key="'o'+oddRound+'-'+i"
+                  class="odd-cell" :class="{shake:oddShake===i}"
+                  :style="{fontSize:oddFS+'px'}" @click="oddPick(i)">{{cell}}</button>
+        </div>
+      </div>
+
+      <div class="text-center text-[11px] font-bold text-white/90 drop-shadow">Press P or Esc to pause ⏸️</div>
+    </template>
+
+    <!-- pause overlay -->
+    <div v-if="paused && gstate==='play'" class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+        <div class="text-5xl mb-1">⏸️</div>
+        <h2 class="text-2xl font-extrabold text-slate-700 mb-4">Paused</h2>
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-green" @click="togglePause">▶ Keep Playing</button>
+          <button class="btn btn-amber" @click="playAgain">🔁 Restart</button>
+          <button class="btn btn-purple" @click="openLab('pause')">🛠️ Game Master Lab</button>
+          <button class="btn btn-white" @click="toggleSound">{{profile.sound?'🔊 Sound: ON':'🔇 Sound: OFF'}}</button>
+          <button class="btn btn-red" @click="backToMeadow">🌼 Quit to Meadow</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- result overlay -->
+    <div v-if="gstate==='over'" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
+      <div class="confetti" v-for="(c,i) in confetti" :key="'cf'+i"
+           :style="{left:c.left+'%',animationDuration:c.dur+'s',animationDelay:c.delay+'s',fontSize:c.size+'px'}">{{c.e}}</div>
+      <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl relative z-10">
+        <div class="text-6xl">{{result.stars===3 ? '🏆' : activeDef.emoji}}</div>
+        <h2 class="text-3xl font-extrabold mt-1" :class="result.stars===3?'text-amber-500':result.stars===2?'text-emerald-600':'text-sky-600'">{{resultHead}}</h2>
+        <div class="flex justify-center gap-2 my-3">
+          <span v-for="n in 3" :key="n" class="star-btn" :class="n<=result.stars?'star-on':'star-off'"
+                :style="n<=result.stars?{animationDelay:(n*0.18)+'s'}:{}">⭐</span>
+        </div>
+        <p class="text-lg font-black text-slate-700">{{resultScoreText}}</p>
+        <p v-if="result.newBest" class="text-amber-600 font-black mt-1"><span class="pulse-tag">🌟 NEW BEST! 🎉</span></p>
+        <p class="text-xs font-bold text-slate-400 mt-1">Best: {{bestText(activeGame)}}</p>
+        <div class="flex flex-col gap-2 mt-4">
+          <button class="btn btn-green" @click="playAgain">🔁 Play Again</button>
+          <button class="btn btn-white" @click="backToMeadow">🌼 Back to Meadow</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FAMILY SCORES ============ -->
+  <div v-else-if="screen==='family'" class="relative z-10 max-w-md mx-auto p-4 md:p-6 min-h-screen flex flex-col gap-4">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('meadow')">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white drop-shadow">🏆 Family Scores</h1>
+    </div>
+    <div class="panel !p-4 text-center">
+      <div class="text-xs font-black text-slate-500">Meadow Stars collected</div>
+      <div class="text-4xl font-black text-amber-500">⭐ {{meadowStars}} <span class="text-lg text-slate-400">/ 18</span></div>
+    </div>
+    <div class="flex flex-col gap-2">
+      <div v-for="r in famRows" :key="r.id" class="panel !p-3 flex items-center gap-3">
+        <div class="text-3xl w-10 text-center">{{r.emoji}}</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-black text-slate-700 text-sm">{{r.name}}</div>
+          <div class="text-[11px] font-bold text-slate-500">Best: {{r.score}}</div>
+        </div>
+        <div class="text-sm leading-none">
+          <span v-for="n in 3" :key="n" :class="n <= r.stars ? '' : 'opacity-20 grayscale'">⭐</span>
+        </div>
+      </div>
+    </div>
+    <div class="text-center text-[11px] font-bold text-white/90 drop-shadow">Who will get all 18 stars first? 😄</div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="relative z-10 max-w-2xl mx-auto p-4 md:p-6 min-h-screen flex flex-col gap-4">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">❓ How to Play</h1>
+    </div>
+    <div class="panel !p-4 font-black text-slate-700 text-center">👫 Take turns on this PC with your family! You share one meadow — try to beat each other's best scores!</div>
+    <div class="panel !p-5 flex flex-col gap-3 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="text-3xl">🌼</span><p>Pick a game from the meadow. Each flower sign shows your best stars. Earn ⭐ to grow your Meadow Stars!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🐰</span><p><b>Bunny Pops</b> — tap bunnies when they pop out of their burrows (+1). Don't tap the buzzy bees (−2)!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🦉</span><p><b>Memory Grove</b> — flip two cards at a time and remember where the animal friends hide. Fewer moves = more stars!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🌸</span><p><b>Flower Song</b> — watch the flowers sing their tune, then tap the same tune back. It grows one note every round!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🍎</span><p><b>Fruit Catch</b> — move the basket with ← → (or A / D, or the big buttons) and catch fruit. Dodge the boots!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🔍</span><p><b>Odd One Out</b> — find the one emoji that is different. The board grows bigger every round — go quick for stars!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🎈</span><p><b>Balloon Pop</b> — pop the floating balloons (+1). Golden balloons are worth +3 but float away fast!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">⏸️</span><p>Press <b>P</b> or <b>Esc</b> to pause any game. Turn sound on or off in Settings.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="relative z-10 max-w-md mx-auto p-4 md:p-6 min-h-screen flex flex-col gap-4">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases all best scores and stars. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center">
+          <span class="text-xs font-black text-rose-600">Really erase it all?</span>
+          <button class="btn btn-red !px-3 text-xs min-h-[44px]" @click="doReset">Yes</button>
+          <button class="btn btn-white !px-3 text-xs min-h-[44px]" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">Games played: {{profile.plays}} · v1.1</div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="relative z-10 max-w-3xl mx-auto p-4 md:p-6 min-h-screen flex flex-col gap-4">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white drop-shadow">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="text-white font-bold text-sm text-center -mt-2 drop-shadow">You are the boss of this meadow! Move a slider, then go play and feel the difference.</p>
+
+    <!-- sliders + theme picker -->
+    <div class="panel !p-4 flex flex-col gap-4">
+      <div v-for="d in LAB_DEFS" :key="d.key">
+        <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+          <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+          <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">×{{profile.lab[d.key]}}</span>
+        </div>
+        <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+               :value="profile.lab[d.key]" @input="setLab(d.key,$event)">
+        <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>×{{d.min}}</span><span class="text-slate-500">normal = ×{{d.def}}</span><span>×{{d.max}}</span></div>
+      </div>
+      <div>
+        <div class="font-black text-slate-700 text-sm mb-2">🌈 Meadow theme <span class="font-bold text-slate-400 text-xs">· repaints the whole meadow, right now!</span></div>
+        <div class="flex gap-2">
+          <button v-for="s in LAB_SKIES" :key="s.key" class="btn flex-1 min-h-[44px] !py-2 text-sm"
+                  :class="profile.lab.sky===s.key?'btn-purple':'btn-white'" @click="pickSky(s.key)">{{s.icon}} {{s.name}}</button>
+        </div>
+      </div>
+      <button class="btn btn-red text-sm self-start min-h-[44px]" @click="resetLab">↩️ Reset to normal</button>
+    </div>
+
+    <!-- lesson cards -->
+    <div class="grid md:grid-cols-2 gap-3">
+      <div class="panel !p-4">
+        <div class="text-2xl">📦</div>
+        <div class="font-black text-slate-700 text-sm">Variables</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">A variable is a named number. <b>bunnyPace</b> decides how fast new bunnies pop out of their burrows — slide it up and the meadow turns into a bunny storm!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔢</div>
+        <div class="font-black text-slate-700 text-sm">Numbers &amp; multiplication</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">Your basket slides <b>fruitSpeed</b> × 430 pixels every second. Set <b>fruitSpeed</b> to 2 and your basket zooms twice as fast!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔁</div>
+        <div class="font-black text-slate-700 text-sm">Loops</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">Balloon Pop runs its loop 60 times a second, and each run spawns new balloons using <b>balloonPace</b>. A loop doing tiny steps, over and over, fills the sky!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">⏱️</div>
+        <div class="font-black text-slate-700 text-sm">Timing</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">Flower Song waits 460 ms between notes. <b>songTempo</b> divides that wait — set it to 2 and the flowers sing twice as fast. Tiny waits add up to a whole tune!</p>
+      </div>
+    </div>
+
+    <!-- mini code box -->
+    <div class="panel !p-4 flex flex-col gap-2">
+      <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+      <p class="text-xs font-bold text-slate-500">Try <b>bunnyPace = 2</b>, or <b>fruitSpeed = 1 + 1</b>, or even <b>balloonPace = bunnyPace * 2</b> — then press Enter.</p>
+      <div class="flex gap-2">
+        <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+               class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+               placeholder="bunnyPace = 2">
+        <button class="btn btn-green !py-2 text-sm min-h-[44px]" @click="runLabCode">Run ▶</button>
+      </div>
+      <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+      <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   PARTY MEADOW — six mini-games in a sunny meadow
+   (original characters & art — emoji + canvas + CSS only)
+   ============================================================ */
+
+// --- parental knobs ---------------------------------------------------------
+const SAVE_KEY = 'partyMeadowSave1';
+const SONG_MAX_ROUND = 12;   // Flower Song: win big after repeating 12 notes
+
+// --- Game Master Lab -------------------------------------------------------
+// Sliders bound to real gameplay constants. Values live in profile.lab and
+// multiply the base behavior (1 = normal). The engines read them LIVE.
+const LAB_DEFS = [
+  {key:'bunnyPace',  name:'Bunny Speed',  icon:'🐰', min:0.5, max:2,   step:0.1, def:1, hint:'how fast new bunnies pop out'},
+  {key:'fruitSpeed', name:'Basket Speed', icon:'🧺', min:0.5, max:2,   step:0.1, def:1, hint:'how fast your basket slides'},
+  {key:'balloonPace',name:'Balloon Rush', icon:'🎈', min:0.5, max:2,   step:0.1, def:1, hint:'how many balloons float by'},
+  {key:'songTempo',  name:'Song Tempo',   icon:'🎵', min:0.5, max:1.5, step:0.1, def:1, hint:'how fast the flowers sing'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_SKIES = [
+  {key:'meadow', icon:'🌼', name:'Sunny'},
+  {key:'sunset', icon:'🌇', name:'Sunset'},
+  {key:'night',  icon:'🌌', name:'Starry'}
+];
+function defaultLab(){
+  const lab={ sky:'meadow' };
+  for(const d of LAB_DEFS) lab[d.key]=d.def;
+  return lab;
+}
+function sanitizeLab(v){
+  const lab=Object.assign(defaultLab(), (v && typeof v==='object') ? v : {});
+  for(const d of LAB_DEFS){
+    const n=+lab[d.key];
+    lab[d.key]=isFinite(n)?Math.max(d.min,Math.min(d.max,n)):d.def;
+  }
+  if(!LAB_SKIES.some(s=>s.key===lab.sky)) lab.sky='meadow';
+  return lab;
+}
+
+const GAMES = [
+  {id:'bunny',   name:'Bunny Pops',    emoji:'🐰', how:'Tap the bunnies when they pop out of their burrows — but never the bees!'},
+  {id:'memory',  name:'Memory Grove',  emoji:'🦉', how:'Flip two cards at a time and find all eight matching animal friends.'},
+  {id:'song',    name:'Flower Song',   emoji:'🌸', how:'Watch the flowers sing their tune, then tap the same tune back!'},
+  {id:'fruit',   name:'Fruit Catch',   emoji:'🍎', how:'Slide the basket to catch falling fruit — and dodge the boots!'},
+  {id:'odd',     name:'Odd One Out',   emoji:'🔍', how:'One emoji is a little different. Tap it — fast!'},
+  {id:'balloon', name:'Balloon Pop',   emoji:'🎈', how:'Pop the floating balloons! Golden ones are worth 3 and zoom away fast.'}
+];
+
+const MEM_POOL = ['🐿️','🦔','🐸','🦊','🐻','🐼','🐷','🐤','🦉','🦋','🐢','🦄'];
+const ODD_GRIDS = [2,3,3,4,4,4,5,5];          // board size per round (2x2 → 5x5)
+const ODD_PAIRS = [                          // trickier pairs as rounds go on
+  ['🐶','🐱'],['🍎','🍒'],['🌸','🌼'],['⭐','🌟'],
+  ['😀','😄'],['🌷','🌹'],['🍀','🌿'],['🐳','🐬']
+];
+const FLOWERS = [
+  {name:'Rosie',  cls:'fl-pink',   freq:261.63},  // C4
+  {name:'Violet', cls:'fl-purple', freq:329.63},  // E4
+  {name:'Skye',   cls:'fl-blue',   freq:392.00},  // G4
+  {name:'Sunny',  cls:'fl-amber',  freq:523.25}   // C5
+];
+const BALLOON_COLORS = ['#f9a8d4','#a5b4fc','#86efac','#fde68a','#fca5a5','#93c5fd'];
+
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+const KID_FONT   = '"Comic Sans MS","Chalkboard SE","Segoe UI",sans-serif';
+
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function rr(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=arr[i]; arr[i]=arr[j]; arr[j]=t; }
+  return arr;
+}
+
+/* --- shared meadow background for canvas games, tinted by the Lab theme --- */
+const MEADOW_THEMES={
+  meadow:{sky:['#9fe0ff','#eaf8ff'],grass:['#8fd35d','#7ec850'],sun:'#fde047',halo:'#fef08a',cloud:'rgba(255,255,255,.92)'},
+  sunset:{sky:['#fb923c','#fde68a'],grass:['#84cc16','#65a30d'],sun:'#fdba74',halo:'#fed7aa',cloud:'rgba(255,237,213,.9)'},
+  night:{sky:['#1e1b4b','#4c1d95'],grass:['#3f6212','#365314'],sun:'#fef9c3',halo:'rgba(254,249,195,.4)',cloud:'rgba(203,213,225,.35)'}
+};
+function drawMeadow(ctx,w,h,t,clouds,themeKey){
+  const th=MEADOW_THEMES[themeKey]||MEADOW_THEMES.meadow;
+  const skyG=ctx.createLinearGradient(0,0,0,h*0.7);
+  skyG.addColorStop(0,th.sky[0]); skyG.addColorStop(1,th.sky[1]);
+  ctx.fillStyle=skyG; ctx.fillRect(0,0,w,h);
+  // sun
+  ctx.fillStyle=th.sun; ctx.beginPath(); ctx.arc(w-90,80,36,0,7); ctx.fill();
+  ctx.globalAlpha=.35; ctx.fillStyle=th.halo; ctx.beginPath(); ctx.arc(w-90,80,54,0,7); ctx.fill(); ctx.globalAlpha=1;
+  // drifting clouds
+  ctx.fillStyle=th.cloud;
+  for(const c of clouds){
+    const cx=((c.x + t*c.spd) % (w+260)) - 130;
+    ctx.beginPath();
+    ctx.arc(cx,c.y,24*c.s,0,7);
+    ctx.arc(cx+28*c.s,c.y-11*c.s,28*c.s,0,7);
+    ctx.arc(cx+58*c.s,c.y,22*c.s,0,7);
+    ctx.fill();
+  }
+  // grass
+  const gy=h*0.66;
+  ctx.fillStyle=th.grass[0]; ctx.fillRect(0,gy,w,h-gy);
+  ctx.fillStyle=th.grass[1];
+  ctx.beginPath(); ctx.ellipse(w*0.25,gy+8,w*0.45,26,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w*0.78,gy+6,w*0.4,22,0,0,7); ctx.fill();
+  // little flowers on the grass
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font='18px '+EMOJI_FONT;
+  const fl=['🌼','🌷','🌸'];
+  for(let i=0;i<10;i++){
+    const fx=(i*103+40)%w, fy=gy+28+((i*53)%Math.max(40,h-gy-46));
+    ctx.fillText(fl[i%3],fx,fy);
+  }
+}
+
+/* --- floating "+1" texts + particle poofs, shared by canvas games --- */
+class FxLayer{
+  constructor(){ this.floats=[]; this.parts=[]; }
+  float(x,y,txt,c){ this.floats.push({x,y,txt,c,t:0.95}); }
+  burst(x,y,emo,n){
+    for(let i=0;i<n;i++) this.parts.push({x,y,vx:rnd(-110,110),vy:rnd(-190,-50),e:emo,t:rnd(0.35,0.7),rot:rnd(0,6),vr:rnd(-6,6)});
+  }
+  bits(x,y,cols,n){
+    for(let i=0;i<n;i++) this.parts.push({x,y,vx:rnd(-160,160),vy:rnd(-260,-60),c:cols[(Math.random()*cols.length)|0],r:rnd(3,7),t:rnd(0.4,0.8)});
+  }
+  update(dt){
+    for(const f of this.floats){ f.t-=dt; f.y-=48*dt; }
+    this.floats=this.floats.filter(f=>f.t>0);
+    for(const p of this.parts){ p.t-=dt; p.vy+=340*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; if(p.rot!=null)p.rot+=p.vr*dt; }
+    this.parts=this.parts.filter(p=>p.t>0);
+  }
+  draw(ctx){
+    for(const p of this.parts){
+      ctx.globalAlpha=clamp(p.t/0.4,0,1);
+      if(p.e){ ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot||0); ctx.font='18px '+EMOJI_FONT; ctx.fillText(p.e,0,0); ctx.restore(); }
+      else { ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); }
+    }
+    ctx.globalAlpha=1;
+    for(const f of this.floats){
+      ctx.globalAlpha=clamp(f.t/0.6,0,1);
+      ctx.font='bold 20px '+KID_FONT;
+      ctx.lineWidth=4; ctx.strokeStyle='rgba(0,0,0,.55)';
+      ctx.strokeText(f.txt,f.x,f.y);
+      ctx.fillStyle=f.c||'#fff'; ctx.fillText(f.txt,f.x,f.y);
+    }
+    ctx.globalAlpha=1;
+  }
+}
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click':  this.tone(500,650,0.06,'sine',0.07); break;
+      case 'boing':  this.tone(280,760,0.16,'triangle',0.14); break;          // bunny pop
+      case 'buzz':   this.tone(170,120,0.22,'sawtooth',0.07); this.tone(160,110,0.22,'sawtooth',0.05,0.07); break; // gentle bee
+      case 'flip':   this.tone(420,620,0.06,'sine',0.06); break;              // card flip
+      case 'match':  this.tone(660,990,0.09,'triangle',0.11); this.tone(990,1320,0.12,'triangle',0.10,0.09); break; // happy ding
+      case 'ding':   this.tone(880,1320,0.12,'triangle',0.11); break;
+      case 'oops':   [392,330,262].forEach((f,i)=>this.tone(f,f*0.98,0.2,'sine',0.1,i*0.16)); break;
+      case 'win':    [523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.16,'triangle',0.13,i*0.13)); break;
+      case 'pop':    this.tone(600,140,0.09,'square',0.07); break;            // balloon
+      case 'golden': [880,1174,1568].forEach((f,i)=>this.tone(f,f,0.1,'triangle',0.11,i*0.07)); break;
+      case 'catch':  this.tone(500,760,0.07,'sine',0.09); break;              // fruit in basket
+      case 'boot':   this.tone(150,90,0.13,'square',0.07); break;             // boot in basket
+      case 'deny':   this.tone(200,130,0.12,'sawtooth',0.05); break;          // odd-one shake
+      case 'tick':   this.tone(950,950,0.05,'sine',0.05); break;              // final seconds
+      case 'buy':    this.tone(700,1050,0.1,'triangle',0.12); this.tone(1050,1400,0.1,'triangle',0.1,0.09); break; // Lab success
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============ canvas engine base (bunny / fruit / balloon) ============ */
+class CanvasGame{
+  constructor(opts){
+    this.w=1000; this.h=560;
+    this.hud=opts.hud; this.sfx=opts.sfx; this.onEnd=opts.onEnd;
+    this.lab=opts.lab || defaultLab();   // Game Master Lab values, read LIVE
+    this.fx=new FxLayer();
+    this.time=0; this.score=0; this.over=false; this.paused=false; this.running=false;
+    this.clouds=[{x:rnd(0,900),y:60,s:1,spd:12},{x:rnd(0,900),y:120,s:0.7,spd:8},{x:rnd(0,900),y:40,s:0.85,spd:16}];
+    this._frame=this._frame.bind(this); this._last=0;
+  }
+  attach(cv){
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    cv.width=this.w*dpr; cv.height=this.h*dpr;
+    this.ctx=cv.getContext('2d');
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  start(){ this.running=true; this._last=performance.now(); requestAnimationFrame(this._frame); }
+  stop(){ this.running=false; }
+  finish(){
+    if(this.over) return;
+    this.over=true; this.stop();
+    this.onEnd(this.score);
+  }
+  tickClock(dt){
+    this.left-=dt;
+    if(this.left<=0){ this.left=0; this.hud.time=0; this.hud.timePct=0; this.finish(); return false; }
+    const tl=Math.ceil(this.left);
+    if(tl!==this.hud.time){ this.hud.time=tl; if(tl<=3) this.sfx.play('tick'); }
+    this.hud.timePct=Math.max(0,this.left/this.total*100);
+    this.hud.score=this.score;
+    return true;
+  }
+  _frame(ts){
+    if(!this.running) return;
+    const dt=Math.min(0.05,Math.max(0,(ts-this._last)/1000)); this._last=ts;
+    if(!this.paused && !this.over) this.update(dt);
+    this.render();
+    requestAnimationFrame(this._frame);
+  }
+}
+
+/* ============ 1) BUNNY POPS — whack-a-bunny in the meadow ============ */
+class BunnyEngine extends CanvasGame{
+  constructor(opts){
+    super(opts);
+    this.total=45; this.left=45; this.spawnT=0.7;
+    this.holes=[{x:200,y:418},{x:500,y:418},{x:800,y:418},{x:200,y:508},{x:500,y:508},{x:800,y:508}];
+    this.occ=this.holes.map(()=>null);
+    this.hud.time=45; this.hud.timePct=100; this.hud.score=0;
+  }
+  update(dt){
+    this.time+=dt;
+    if(!this.tickClock(dt)) return;
+    this.spawnT-=dt;
+    if(this.spawnT<=0){
+      this.spawn();
+      this.spawnT=rnd(0.5,1.0)*(this.left>15?1:0.75)/(this.lab.bunnyPace||1);
+    }
+    for(let i=0;i<this.occ.length;i++){
+      const o=this.occ[i]; if(!o) continue;
+      if(o.phase==='rise'){ o.rise=Math.min(1,o.rise+dt/0.16); if(o.rise>=1) o.phase='up'; }
+      else if(o.phase==='up'){ o.hold-=dt; if(o.hold<=0) o.phase='sink'; }
+      else { o.rise-=dt/0.18; if(o.rise<=0) this.occ[i]=null; }
+    }
+    this.fx.update(dt);
+  }
+  spawn(){
+    const free=[];
+    for(let i=0;i<this.occ.length;i++) if(!this.occ[i]) free.push(i);
+    if(!free.length) return;
+    const i=free[(Math.random()*free.length)|0];
+    const bee=Math.random()<0.16;
+    this.occ[i]={type:bee?'bee':'bunny',phase:'rise',rise:0,hold:bee?rnd(0.9,1.3):rnd(0.8,1.6),seed:rnd(0,10)};
+  }
+  pos(o,hx,hy){
+    const e=o.rise<1 ? 1-Math.pow(1-o.rise,2) : 1;    // ease-out pop
+    const yDown=hy+62, yUp=o.type==='bee'?hy-78:hy-44;
+    const y=yDown+(yUp-yDown)*e + (o.phase==='up'?Math.sin(this.time*5+o.seed)*4:0);
+    const sway=o.phase==='up'?Math.sin(this.time*4+o.seed)*(o.type==='bee'?16:5):0;
+    const rot=Math.sin(this.time*8+o.seed)*0.09;
+    return {x:hx+sway,y,rot};
+  }
+  pointer(x,y){
+    if(this.over||this.paused) return;
+    for(let i=0;i<this.occ.length;i++){
+      const o=this.occ[i];
+      if(!o||o.rise<0.25||o.phase==='sink') continue;
+      const p=this.pos(o,this.holes[i].x,this.holes[i].y);
+      const r=o.type==='bee'?42:54;
+      if(Math.hypot(x-p.x,y-p.y)<=r){
+        if(o.type==='bunny'){
+          this.score++;
+          this.fx.float(p.x,p.y-48,'+1','#a7f3d0');
+          this.fx.burst(p.x,p.y,'✨',7);
+          this.sfx.play('boing');
+        } else {
+          this.score=Math.max(0,this.score-2);
+          this.fx.float(p.x,p.y-48,'-2','#fecaca');
+          this.fx.burst(p.x,p.y,'💫',4);
+          this.sfx.play('buzz');
+        }
+        this.hud.score=this.score;
+        o.phase='sink';
+        return;
+      }
+    }
+  }
+  render(){
+    const ctx=this.ctx; if(!ctx) return;
+    drawMeadow(ctx,this.w,this.h,this.time,this.clouds,this.lab.sky);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(let i=0;i<this.holes.length;i++){
+      const hx=this.holes[i].x, hy=this.holes[i].y;
+      // grassy mound
+      ctx.fillStyle='#6cb43f'; ctx.beginPath(); ctx.ellipse(hx,hy+18,112,44,0,0,7); ctx.fill();
+      ctx.fillStyle='#5da536'; ctx.beginPath(); ctx.ellipse(hx,hy+28,116,38,0,0,7); ctx.fill();
+      // dark hole
+      ctx.fillStyle='#5b3a1e'; ctx.beginPath(); ctx.ellipse(hx,hy,74,24,0,0,7); ctx.fill();
+      ctx.fillStyle='#3f2812'; ctx.beginPath(); ctx.ellipse(hx,hy+4,74,19,0,0,7); ctx.fill();
+      // occupant rising out of the hole (clipped so it appears from inside)
+      const o=this.occ[i];
+      if(o){
+        const p=this.pos(o,hx,hy);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(hx-80,0,160,hy);
+        ctx.ellipse(hx,hy,74,24,0,0,7);
+        ctx.clip();
+        ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.font=(o.type==='bee'?46:60)+'px '+EMOJI_FONT;
+        ctx.fillText(o.type==='bee'?'🐝':'🐰',0,0);
+        ctx.restore();
+      }
+      // front rim of the hole
+      ctx.strokeStyle='#4a2f16'; ctx.lineWidth=5;
+      ctx.beginPath(); ctx.ellipse(hx,hy+8,70,17,0,0.15,Math.PI-0.15); ctx.stroke();
+      // grass tufts beside each burrow
+      ctx.font='20px '+EMOJI_FONT;
+      ctx.fillText('🌿',hx-104,hy+16); ctx.fillText('🌿',hx+104,hy+16);
+    }
+    this.fx.draw(ctx);
+  }
+}
+
+/* ============ 4) FRUIT CATCH — slide the basket ============ */
+class FruitEngine extends CanvasGame{
+  constructor(opts){
+    super(opts);
+    this.total=40; this.left=40;
+    this.bx=500; this.bw=120;
+    this.keyL=false; this.keyR=false; this.btnL=false; this.btnR=false;
+    this.items=[]; this.spawnT=0.5; this.shake=0;
+    this.fruits=['🍎','🍓','🍌','🍇'];
+    this.hud.time=40; this.hud.timePct=100; this.hud.score=0;
+  }
+  update(dt){
+    this.time+=dt;
+    if(!this.tickClock(dt)) return;
+    // basket movement (keyboard + on-screen buttons)
+    const dir=((this.keyR||this.btnR)?1:0)-((this.keyL||this.btnL)?1:0);
+    this.bx=clamp(this.bx+dir*430*(this.lab.fruitSpeed||1)*dt,70,this.w-70);
+    if(this.shake>0) this.shake-=dt;
+    // spawn fruit / boots (gentle speed ramp)
+    this.spawnT-=dt;
+    if(this.spawnT<=0){
+      this.spawnT=rnd(0.45,0.85)*(1-0.35*(this.time/this.total));
+      const boot=Math.random()<0.22;
+      this.items.push({e:boot?'🥾':this.fruits[(Math.random()*4)|0],boot,x:rnd(60,this.w-60),y:-30,vy:rnd(150,190)+this.time*3.2,ph:rnd(0,7)});
+    }
+    // fall + catch
+    const mouth=this.h-94;
+    for(const it of this.items){
+      it.y+=it.vy*dt;
+      if(!it.done && it.y>mouth-24 && it.y<mouth+34 && Math.abs(it.x-this.bx)<this.bw/2+12){
+        it.done=true; it.dead=true;
+        if(it.boot){
+          this.score=Math.max(0,this.score-1);
+          this.fx.float(it.x,mouth-30,'-1','#fecaca');
+          this.sfx.play('boot'); this.shake=0.3;
+        } else {
+          this.score++;
+          this.fx.float(it.x,mouth-30,'+1','#bbf7d0');
+          this.fx.burst(it.x,mouth-8,'💫',4);
+          this.sfx.play('catch');
+        }
+        this.hud.score=this.score;
+      }
+      if(it.y>this.h+40){
+        it.dead=true;
+        if(!it.boot) this.fx.bits(it.x,this.h-16,['#fda4af','#fdba74','#a7f3d0'],5);
+      }
+    }
+    this.items=this.items.filter(it=>!it.dead);
+    this.fx.update(dt);
+  }
+  pointer(){}
+  render(){
+    const ctx=this.ctx; if(!ctx) return;
+    drawMeadow(ctx,this.w,this.h,this.time,this.clouds,this.lab.sky);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    // friendly trees
+    ctx.font='64px '+EMOJI_FONT;
+    ctx.fillText('🌳',62,this.h*0.66-46); ctx.fillText('🌳',this.w-62,this.h*0.66-46);
+    // falling items with a gentle sway + spin
+    for(const it of this.items){
+      ctx.save();
+      ctx.translate(it.x+Math.sin(this.time*3+it.ph)*6,it.y);
+      ctx.rotate(Math.sin(this.time*2+it.ph)*0.15);
+      ctx.font='42px '+EMOJI_FONT;
+      ctx.fillText(it.e,0,0);
+      ctx.restore();
+    }
+    // basket
+    const by=this.h-68;
+    const sx=this.shake>0?Math.sin(this.time*70)*4:0;
+    const dir=((this.keyR||this.btnR)?1:0)-((this.keyL||this.btnL)?1:0);
+    ctx.save();
+    ctx.translate(this.bx+sx,by+Math.sin(this.time*6)*2);
+    ctx.rotate(dir*0.08);
+    ctx.fillStyle='rgba(0,0,0,.15)';
+    ctx.beginPath(); ctx.ellipse(0,36,this.bw*0.7,10,0,0,7); ctx.fill();
+    ctx.fillStyle='#c98a4b'; rr(ctx,-this.bw/2,-16,this.bw,44,12); ctx.fill();
+    ctx.strokeStyle='#8a5a2b'; ctx.lineWidth=3; ctx.stroke();
+    ctx.strokeStyle='rgba(138,90,43,.5)'; ctx.lineWidth=2;
+    for(let i=1;i<4;i++){ ctx.beginPath(); ctx.moveTo(-this.bw/2+8,-16+i*11); ctx.lineTo(this.bw/2-8,-16+i*11); ctx.stroke(); }
+    ctx.fillStyle='#e0a866'; rr(ctx,-this.bw/2-6,-25,this.bw+12,14,7); ctx.fill();
+    ctx.restore();
+    this.fx.draw(ctx);
+  }
+}
+
+/* ============ 6) BALLOON POP — pop them before they float away ============ */
+class BalloonEngine extends CanvasGame{
+  constructor(opts){
+    super(opts);
+    this.total=30; this.left=30;
+    this.balls=[]; this.spawnT=0.4;
+    this.hud.time=30; this.hud.timePct=100; this.hud.score=0;
+  }
+  update(dt){
+    this.time+=dt;
+    if(!this.tickClock(dt)) return;
+    this.spawnT-=dt;
+    if(this.spawnT<=0){
+      this.spawnT=rnd(0.55,0.95)*(1-0.3*(this.time/this.total))/(this.lab.balloonPace||1);
+      const gold=Math.random()<0.18;
+      this.balls.push({
+        x:rnd(60,this.w-60), y:this.h+56, gold,
+        r:rnd(30,40),
+        vy:-(gold?rnd(150,190):rnd(80,120)),
+        ph:rnd(0,7),
+        c:gold?'#fbbf24':BALLOON_COLORS[(Math.random()*BALLOON_COLORS.length)|0]
+      });
+    }
+    for(const b of this.balls){ b.y+=b.vy*dt; if(b.y<-70) b.dead=true; }
+    this.balls=this.balls.filter(b=>!b.dead);
+    this.fx.update(dt);
+  }
+  pointer(x,y){
+    if(this.over||this.paused) return;
+    for(let i=0;i<this.balls.length;i++){
+      const b=this.balls[i];
+      const bx=b.x+Math.sin(this.time*1.6+b.ph)*14;
+      if(Math.hypot(x-bx,y-b.y)<b.r+14){
+        const pts=b.gold?3:1;
+        this.score+=pts; this.hud.score=this.score;
+        this.fx.float(bx,b.y,'+'+pts,b.gold?'#fde047':'#ffffff');
+        this.fx.bits(bx,b.y,b.gold?['#fde047','#fbbf24','#ffffff']:['#f9a8d4','#a5b4fc','#86efac','#fde68a'],12);
+        this.fx.burst(bx,b.y,'✨',3);
+        this.sfx.play(b.gold?'golden':'pop');
+        this.balls.splice(i,1);
+        return;
+      }
+    }
+  }
+  render(){
+    const ctx=this.ctx; if(!ctx) return;
+    drawMeadow(ctx,this.w,this.h,this.time,this.clouds,this.lab.sky);
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    for(const b of this.balls){
+      const bx=b.x+Math.sin(this.time*1.6+b.ph)*14;
+      const sq=1+Math.sin(this.time*3+b.ph)*0.05;   // squash-and-stretch bob
+      ctx.save(); ctx.translate(bx,b.y);
+      // string
+      ctx.strokeStyle='rgba(80,60,90,.55)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(0,b.r*sq+10);
+      ctx.quadraticCurveTo(8,b.r*sq+28,0,b.r*sq+46); ctx.stroke();
+      // knot
+      ctx.fillStyle=b.c;
+      ctx.beginPath(); ctx.moveTo(0,b.r*sq-2); ctx.lineTo(-7,b.r*sq+12); ctx.lineTo(7,b.r*sq+12); ctx.closePath(); ctx.fill();
+      // body
+      ctx.beginPath(); ctx.ellipse(0,0,b.r*0.86,b.r*sq,0,0,7); ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.12)'; ctx.lineWidth=2; ctx.stroke();
+      // shine
+      ctx.fillStyle='rgba(255,255,255,.55)';
+      ctx.beginPath(); ctx.ellipse(-b.r*0.3,-b.r*0.35,b.r*0.16,b.r*0.26,-0.5,0,7); ctx.fill();
+      if(b.gold){ ctx.font='20px '+EMOJI_FONT; ctx.fillText('⭐',0,2); }
+      ctx.restore();
+    }
+    this.fx.draw(ctx);
+  }
+}
+
+/* ============ stars & save ============ */
+function starsFor(id,score){
+  switch(id){
+    case 'bunny':   return score>=15?3:score>=10?2:1;
+    case 'memory':  return score<=10?3:score<=14?2:1;   // score = moves (fewer is better)
+    case 'song':    return score>=10?3:score>=8?2:1;    // score = round reached
+    case 'fruit':   return score>=20?3:score>=14?2:1;
+    case 'odd':     return score<20?3:score<30?2:1;     // score = total seconds (faster is better)
+    case 'balloon': return score>=18?3:score>=12?2:1;
+  }
+  return 1;
+}
+function defaultProfile(){
+  const best={};
+  GAMES.forEach(g=>{ best[g.id]={score:0,stars:0}; });
+  return { sound:true, plays:0, best, lab:defaultLab() };
+}
+function loadProfile(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p=JSON.parse(raw), d=defaultProfile();
+      const best={};
+      GAMES.forEach(g=>{ best[g.id]=Object.assign({score:0,stars:0},(p.best&&p.best[g.id])||{}); });
+      return Object.assign(d,p,{best,lab:sanitizeLab(p.lab)});
+    }
+  }catch(e){}
+  return defaultProfile();
+}
+
+/* ============================ VUE APP ============================ */
+const app = Vue.createApp({
+  data(){
+    return {
+      screen:'menu',
+      gstate:'intro',          // intro | play | over
+      activeGame:'bunny',
+      profile: loadProfile(),
+      hud:{ score:0, time:0, timePct:0, moves:0, pairs:0, round:1 },
+      engine:null,
+      result:null,
+      paused:false,
+      toasts:[], toastSeq:0,
+      confetti:[],
+      resetArmed:false,
+      // memory grove
+      memCards:[], memLock:false, memFirst:-1,
+      // flower song
+      songRound:1, songState:'idle', songLit:-1,
+      // odd one out
+      oddRound:0, oddCols:2, oddCells:[], oddIdx:0, oddShake:-1,
+      oddClock:'0.0', oddDone:false, oddBusy:false,
+      // scenery
+      games:GAMES, flowers:FLOWERS,
+      LAB_DEFS, LAB_SKIES,
+      labCode:'', labMsg:'', labMsgOk:false, labReturn:'menu',
+      cloudDrops:[
+        {top:5,s:1,dur:75,delay:0},{top:15,s:0.65,dur:100,delay:35},
+        {top:26,s:0.8,dur:85,delay:60},{top:9,s:0.5,dur:115,delay:80}
+      ],
+      bedFlowers:[...'🌷🌼🌻🌸🌺🌼🌷🌻🌸🌼🌷🌺🌻🌼']   // array, NOT a string — v-for over a string iterates UTF-16 code units and splits emoji into broken glyphs
+    };
+  },
+  computed:{
+    activeDef(){ return this.gameDef(this.activeGame); },
+    isCanvasGame(){ return this.activeGame==='bunny'||this.activeGame==='fruit'||this.activeGame==='balloon'; },
+    meadowStars(){ return this.games.reduce((s,g)=>s+(this.profile.best[g.id].stars||0),0); },
+    songStatus(){
+      if(this.songState==='show') return 'Listen… 🎵';
+      if(this.songState==='input') return 'Your turn! 🎤';
+      if(this.songState==='gap') return 'Yay! Next round… ✨';
+      return 'Ready? 🌼';
+    },
+    oddFS(){ return {2:46,3:40,4:32,5:26}[this.oddCols]||30; },
+    isNight(){ return this.profile.lab.sky==='night'; },
+    appBg(){
+      const s=this.profile.lab.sky;
+      if(s==='sunset') return {background:'linear-gradient(180deg,#fda4af 0%,#fdba74 40%,#fde68a 75%,#fef3c7 100%)'};
+      if(s==='night')  return {background:'linear-gradient(180deg,#1e1b4b 0%,#3730a3 45%,#4c1d95 75%,#365314 100%)'};
+      return {};
+    },
+    sceneryStyle(){
+      if(this.isNight) return {opacity:0.35,filter:'brightness(0.8)'};
+      return {};
+    },
+    labReadout(){
+      const l=this.profile.lab;
+      return 'now → bunnyPace ×'+l.bunnyPace+' · fruitSpeed ×'+l.fruitSpeed+' · balloonPace ×'+l.balloonPace+' · songTempo ×'+l.songTempo+' · theme '+l.sky;
+    },
+    famRows(){
+      return this.games.map(g=>({
+        id:g.id, emoji:g.emoji, name:g.name,
+        score:this.bestText(g.id), stars:this.profile.best[g.id].stars||0
+      }));
+    },
+    resultHead(){
+      if(!this.result) return '';
+      return this.result.stars===3?'Meadow Champion!':this.result.stars===2?'Great job!':'Good try!';
+    },
+    resultScoreText(){
+      if(!this.result) return '';
+      const s=this.result.score;
+      switch(this.activeGame){
+        case 'bunny':   return s+' bunnies popped 🐰';
+        case 'memory':  return s+' moves 🃏';
+        case 'song':    return 'Round '+s+' reached 🌸';
+        case 'fruit':   return s+' fruit caught 🍎';
+        case 'odd':     return 'Total time: '+s.toFixed(1)+'s ⏱️';
+        case 'balloon': return s+' balloons popped 🎈';
+      }
+      return '';
+    }
+  },
+  methods:{
+    /* ---------- navigation ---------- */
+    go(screen){
+      if(this.screen==='game' && screen!=='game' && screen!=='lab') this.stopEngine(true);
+      SFX.play('click');
+      this.screen=screen;
+      if(screen!=='game') this.paused=false;
+    },
+    gameDef(id){ return this.games.find(g=>g.id===id) || this.games[0]; },
+    bestText(id){
+      const b=this.profile.best[id].score;
+      if(!b) return '—';
+      if(id==='memory') return b+' moves';
+      if(id==='odd') return b.toFixed(1)+'s';
+      if(id==='song') return 'round '+b;
+      if(id==='bunny') return b+' popped';
+      if(id==='fruit') return b+' caught';
+      return b+' popped';
+    },
+    starHint(id){
+      switch(id){
+        case 'bunny':   return '3⭐ at 15 bunnies · 2⭐ at 10 · 1⭐ for any finished game';
+        case 'memory':  return '3⭐ within 10 moves · 2⭐ within 14 · 1⭐ finish';
+        case 'song':    return '3⭐ round 10 · 2⭐ round 8 · 1⭐ for any finished game';
+        case 'fruit':   return '3⭐ 20 fruit · 2⭐ 14 · 1⭐ for any finished game';
+        case 'odd':     return '3⭐ under 20s · 2⭐ under 30s · 1⭐ finish all 8 rounds';
+        case 'balloon': return '3⭐ 18 pops · 2⭐ 12 · 1⭐ for any finished game';
+      }
+      return '';
+    },
+    controlsHint(id){
+      switch(id){
+        case 'bunny':   return 'Tap with mouse or finger';
+        case 'memory':  return 'Click the cards';
+        case 'song':    return 'Tap the singing flowers';
+        case 'fruit':   return '← → or A / D, or the big buttons';
+        case 'odd':     return 'Tap the different emoji';
+        case 'balloon': return 'Tap with mouse or finger';
+      }
+      return '';
+    },
+
+    /* ---------- game lifecycle ---------- */
+    openGame(id){
+      SFX.play('click');
+      this.stopEngine(true);
+      this.activeGame=id;
+      this.gstate='intro';
+      this.result=null;
+      this.paused=false;
+      this.screen='game';
+    },
+    beginGame(){
+      SFX.ensure(); SFX.play('click');
+      this.stopEngine(true);
+      this.result=null;
+      this.paused=false;
+      this.gstate='play';
+      this.hud={score:0,time:0,timePct:0,moves:0,pairs:0,round:1};
+      this.profile.plays++;
+      this.save();
+      const id=this.activeGame;
+      if(this.isCanvasGame){
+        this.$nextTick(()=>{
+          const cv=this.$refs.cv;
+          if(!cv) return;
+          const Eng=id==='bunny'?BunnyEngine:(id==='fruit'?FruitEngine:BalloonEngine);
+          const eng=new Eng({hud:this.hud,sfx:SFX,lab:this.profile.lab,onEnd:(s)=>this.endGame(s)});
+          this.engine=eng;
+          eng.paused=this.paused;   // in case pause was pressed in the same instant
+          eng.attach(cv);
+          eng.start();
+        });
+      } else if(id==='memory'){
+        this.memStart();
+      } else if(id==='song'){
+        this.songStart();
+      } else if(id==='odd'){
+        this.oddStart();
+      }
+      this.pushToast('Go go go!','🚀');
+    },
+    playAgain(){ this.beginGame(); },
+    backToMeadow(){
+      this.paused=false;
+      this.stopEngine(true);
+      this.gstate='intro';
+      this.go('meadow');
+    },
+    stopEngine(clearState){
+      if(this.engine){ this.engine.stop(); this.engine=null; }
+      this._songClear();
+      if(this._oddInt){ clearInterval(this._oddInt); this._oddInt=null; }
+      this._oddFrozen=false;
+      if(clearState){
+        this.memLock=false; this.memFirst=-1; this.memCards=[];
+        this.songRound=1; this.songState='idle'; this.songLit=-1;
+        this.oddRound=0; this.oddCols=2; this.oddCells=[]; this.oddShake=-1;
+        this.oddClock='0.0'; this.oddDone=false; this.oddBusy=false;
+      }
+    },
+    endGame(score){
+      if(this.gstate!=='play') return;
+      this.stopEngine(false);
+      const id=this.activeGame;
+      score=(id==='odd')?Math.round(score*10)/10:Math.round(score);
+      const stars=starsFor(id,score);
+      const newBest=this.isBetter(id,score);
+      if(newBest) this.profile.best[id].score=score;
+      if(stars>(this.profile.best[id].stars||0)) this.profile.best[id].stars=stars;
+      this.save();
+      this.result={score,stars,newBest};
+      this.gstate='over';
+      this.paused=false;
+      SFX.play('win');
+      if(newBest||stars===3) this.spawnConfetti();
+    },
+    isBetter(id,score){
+      const b=this.profile.best[id].score;
+      if(id==='memory'||id==='odd') return !b || score<b;  // lower is better
+      return score>b;                                       // higher is better
+    },
+
+    /* ---------- pause ---------- */
+    togglePause(){
+      if(this.screen!=='game'||this.gstate!=='play') return;
+      this.paused=!this.paused;
+      if(this.engine) this.engine.paused=this.paused;
+      if(this.paused){
+        if(this.activeGame==='song') this.songPause();
+      } else {
+        if(this.activeGame==='song') this.songResume();
+      }
+      SFX.play('click');
+    },
+
+    /* ---------- Game Master Lab ---------- */
+    openLab(from){
+      SFX.play('click');
+      this.toasts=[];
+      this.labReturn = (from==='pause' && this.screen==='game' && this.gstate==='play') ? 'game' : 'menu';
+      if(this.labReturn==='game'){
+        this.paused=true;
+        if(this.engine){ this.engine.paused=true; this.engine.stop(); }  // rAF loop fully stops while the Lab is open
+        if(this.activeGame==='song') this.songPause();
+        if(this._oddInt){ clearInterval(this._oddInt); this._oddInt=null; this._oddFrozen=true; }
+      }
+      this.labMsg=''; this.labMsgOk=false;
+      this.screen='lab';
+    },
+    closeLab(){
+      SFX.play('click');
+      this.toasts=[];
+      if(this.labReturn==='game'){
+        this.screen='game';   // still paused — the pause overlay welcomes you back
+        if(this._oddFrozen){ this._oddFrozen=false; this._oddStartClock(); }
+        this.$nextTick(()=>{
+          if(this.engine && this.$refs.cv){   // canvas was re-created by v-if
+            this.engine.attach(this.$refs.cv);
+            this.engine.start();              // no double rAF: this engine was stopped in openLab
+          }
+        });
+      } else {
+        this.labReturn='menu';
+        this.screen='menu';
+      }
+    },
+    setLab(key,ev){
+      const d=LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v=parseFloat(ev.target.value); if(!isFinite(v)) v=d.def;
+      v=Math.max(d.min,Math.min(d.max,v));
+      this.profile.lab[key]=Math.round(v*100)/100;
+      this.save();
+    },
+    pickSky(key){ this.profile.lab.sky=key; this.save(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.profile.lab, defaultLab()); // keep object identity (a running engine holds this ref)
+      this.save(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even for bunnies!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-trick. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.profile.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like bunnyPace = 2'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: bunnyPace = 2'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off to infinity! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const clamped=Math.max(def.min,Math.min(def.max,val));
+          const snapped=this.fmtNum(Math.round(clamped/def.step)*def.step); // snap to the slider's step
+          const v=Math.max(def.min,Math.min(def.max,snapped));
+          this.profile.lab[name]=v;
+          this.save(); SFX.play('buy');
+          if(clamped!==val){
+            this.labMsg='🛡️ '+name+' wanted to be '+this.fmtNum(val)+', but I kept it safe at '+v+' (allowed: '+def.min+' to '+def.max+').';
+          } else if(v!==this.fmtNum(val)){
+            this.labMsg='✨ I snapped '+this.fmtNum(val)+' to '+v+' — this dial moves in steps of '+def.step+'.';
+          } else {
+            this.labMsg='✨ Done! '+name+' = '+v+'. Go play and feel it!';
+          }
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like bunnyPace = 1.5';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ---------- canvas input ---------- */
+    onCanvasPointer(e){
+      SFX.ensure();
+      const eng=this.engine;
+      if(!eng||!eng.pointer||this.gstate!=='play'||this.paused) return;
+      const cv=e.currentTarget;
+      const r=cv.getBoundingClientRect();
+      if(r.width<=0||r.height<=0) return;
+      const x=(e.clientX-r.left)*(eng.w/r.width);
+      const y=(e.clientY-r.top)*(eng.h/r.height);
+      eng.pointer(x,y);
+    },
+    fruitBtn(side,down){
+      SFX.ensure();
+      const eng=this.engine;
+      if(!eng) return;
+      if(side==='L') eng.btnL=down; else eng.btnR=down;
+    },
+
+    /* ---------- 2) MEMORY GROVE ---------- */
+    memStart(){
+      const pool=shuffle(MEM_POOL.slice()).slice(0,8);
+      const deck=shuffle(pool.concat(pool));
+      this.memCards=deck.map(e=>({e,flipped:false,matched:false}));
+      this.memLock=false; this.memFirst=-1;
+      this.hud.moves=0; this.hud.pairs=0;
+    },
+    memFlip(i){
+      if(this.gstate!=='play'||this.paused||this.memLock) return;
+      const c=this.memCards[i];
+      if(!c||c.flipped||c.matched) return;
+      SFX.ensure(); SFX.play('flip');
+      c.flipped=true;
+      if(this.memFirst<0){ this.memFirst=i; return; }
+      const a=this.memCards[this.memFirst];
+      this.memFirst=-1;
+      this.hud.moves++;
+      if(a.e===c.e){
+        a.matched=true; c.matched=true;
+        this.hud.pairs++;
+        SFX.play('match');
+        if(this.hud.pairs>=8) setTimeout(()=>this.endGame(this.hud.moves),650);
+      } else {
+        this.memLock=true;
+        setTimeout(()=>{ a.flipped=false; c.flipped=false; this.memLock=false; },800);
+      }
+    },
+
+    /* ---------- 3) FLOWER SONG ---------- */
+    songStart(){
+      this.songSeq=[(Math.random()*4)|0];
+      this.songRound=1; this.songState='gap'; this.songLit=-1;
+      this.hud.round=1;
+      this._songResumeShow=false;
+      this._songLater(700,()=>this.songShow());
+    },
+    _songLater(ms,fn){
+      if(!this._songToks) this._songToks=[];
+      this._songToks.push(setTimeout(fn,ms));
+    },
+    _songClear(){
+      (this._songToks||[]).forEach(clearTimeout);
+      this._songToks=[];
+    },
+    songShow(){
+      this.songState='show'; this.songLit=-1;
+      let i=0;
+      const tempo=this.profile.lab.songTempo||1;
+      const noteMs=Math.round(460/tempo), gapMs=Math.round(170/tempo);
+      const step=()=>{
+        if(i>=this.songSeq.length){ this.songLit=-1; this.songState='input'; this.songStep=0; return; }
+        const f=this.songSeq[i];
+        this.songLit=f;
+        SFX.ensure(); SFX.tone(FLOWERS[f].freq,FLOWERS[f].freq,0.38,'sine',0.16);
+        this._songLater(noteMs,()=>{ this.songLit=-1; i++; this._songLater(gapMs,step); });
+      };
+      this._songLater(Math.round(400/tempo),step);
+    },
+    songTap(i){
+      if(this.songState!=='input'||this.paused||this.gstate!=='play') return;
+      SFX.ensure(); SFX.tone(FLOWERS[i].freq,FLOWERS[i].freq,0.3,'sine',0.15);
+      this.songLit=i;
+      this._songLater(220,()=>{ if(this.songLit===i) this.songLit=-1; });
+      if(i===this.songSeq[this.songStep]){
+        this.songStep++;
+        if(this.songStep>=this.songSeq.length){
+          this.songState='gap';
+          SFX.play('ding');
+          if(this.songSeq.length>=SONG_MAX_ROUND){
+            this.songState='done'; this._songFinal=SONG_MAX_ROUND;
+            this._songLater(700,()=>this.endGame(SONG_MAX_ROUND));
+            return;
+          }
+          this.songRound++; this.hud.round=this.songRound;
+          this.songSeq.push((Math.random()*4)|0);
+          this._songLater(900,()=>this.songShow());
+        }
+      } else {
+        this.songState='done';
+        SFX.play('oops');
+        this._songFinal=this.songSeq.length-1;   // rounds fully completed
+        this._songLater(700,()=>this.endGame(this._songFinal));
+      }
+    },
+    songPause(){
+      // resolve any pending end immediately; freeze sequence playback
+      if(this.songState==='done'){ this._songClear(); this.endGame(this._songFinal); return; }
+      this._songClear();
+      this.songLit=-1;
+      if(this.songState==='show'||this.songState==='gap') this._songResumeShow=true;
+    },
+    songResume(){
+      // kid-friendly: after pausing, the whole tune is sung again from the start
+      if(this._songResumeShow){
+        this._songResumeShow=false;
+        this.songState='gap';
+        this._songLater(300,()=>this.songShow());
+      }
+    },
+
+    /* ---------- 5) ODD ONE OUT ---------- */
+    oddStart(){
+      this.oddRound=0; this.oddMs=0; this.oddClock='0.0';
+      this.oddDone=false; this.oddBusy=false; this.oddShake=-1;
+      this.buildOdd();
+      this._oddStartClock();
+    },
+    _oddStartClock(){
+      this._oddInt=setInterval(()=>{
+        if(this.gstate==='play'&&!this.paused&&!this.oddDone){
+          this.oddMs+=100;
+          this.oddClock=(this.oddMs/1000).toFixed(1);
+        }
+      },100);
+    },
+    buildOdd(){
+      const cols=ODD_GRIDS[this.oddRound];
+      this.oddCols=cols;
+      const pair=ODD_PAIRS[this.oddRound];
+      const base=Math.random()<0.5?pair[0]:pair[1];
+      const odd=base===pair[0]?pair[1]:pair[0];
+      const n=cols*cols;
+      this.oddIdx=(Math.random()*n)|0;
+      const cells=[];
+      for(let i=0;i<n;i++) cells.push(i===this.oddIdx?odd:base);
+      this.oddCells=cells;
+    },
+    oddPick(i){
+      if(this.gstate!=='play'||this.paused||this.oddDone||this.oddBusy) return;
+      if(i===this.oddIdx){
+        SFX.play('ding');
+        this.oddBusy=true;
+        setTimeout(()=>{
+          this.oddBusy=false;
+          if(this.gstate!=='play') return;
+          if(this.oddRound>=ODD_GRIDS.length-1){
+            this.oddFinish();
+          } else {
+            this.oddRound++;
+            this.buildOdd();
+          }
+        },350);
+      } else {
+        SFX.play('deny');
+        this.oddShake=i;
+        setTimeout(()=>{ if(this.oddShake===i) this.oddShake=-1; },400);
+      }
+    },
+    oddFinish(){
+      this.oddDone=true;
+      if(this._oddInt){ clearInterval(this._oddInt); this._oddInt=null; }
+      const secs=Math.round(this.oddMs/100)/10;
+      this.endGame(secs);
+    },
+
+    /* ---------- settings ---------- */
+    toggleSound(){
+      this.profile.sound=!this.profile.sound;
+      SFX.on=this.profile.sound;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    armReset(){
+      this.resetArmed=true;
+      clearTimeout(this._ra);
+      this._ra=setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile=defaultProfile();
+      this.resetArmed=false;
+      SFX.on=true;
+      this.stopEngine(true);
+      this.screen='menu'; this.gstate='intro'; this.paused=false;
+      this.pushToast('Fresh meadow! Good luck!','🌱');
+    },
+
+    /* ---------- misc ---------- */
+    save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(this.profile)); }catch(e){} },
+    pushToast(msg,emoji){
+      const id=++this.toastSeq;
+      this.toasts.push({id,msg,emoji:emoji||'🌼'});
+      setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600);
+    },
+    spawnConfetti(){
+      const em=['⭐','🎉','🌸','🌼','🎈','🍎','✨','🐰'];
+      const out=[];
+      for(let i=0;i<30;i++){
+        out.push({
+          e:em[(Math.random()*em.length)|0],
+          left:Math.random()*96, dur:(2.2+Math.random()*1.8),
+          delay:Math.random()*0.7, size:16+Math.random()*18
+        });
+      }
+      this.confetti=out;
+    }
+  },
+  mounted(){
+    SFX.on=this.profile.sound;
+    window.addEventListener('keydown',(e)=>{
+      if(this.screen==='lab'){
+        if(e.key==='Escape') this.closeLab();
+        return;
+      }
+      if(this.screen!=='game') return;
+      const tag=e.target && e.target.tagName;
+      if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;  // never hijack form fields
+      if(this.gstate==='play'){
+        if(e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key===' ') e.preventDefault();
+        if(e.key==='p'||e.key==='P'||e.key===' '||e.key==='Escape'){ this.togglePause(); return; }
+        if(this.activeGame==='fruit'&&this.engine){
+          if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') this.engine.keyL=true;
+          if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') this.engine.keyR=true;
+        }
+      }
+    });
+    window.addEventListener('keyup',(e)=>{
+      if(this.activeGame==='fruit'&&this.engine){
+        if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') this.engine.keyL=false;
+        if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') this.engine.keyR=false;
+      }
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden && this.screen==='game' && this.gstate==='play' && !this.paused) this.togglePause();
+    });
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    this.pushToast('Welcome to the meadow!','🌼');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>

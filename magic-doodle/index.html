@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magic Doodle 🎨</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
+<!--
+  MAGIC DOODLE — a kid-friendly drawing & coloring app.
+  Part of the free, MIT-licensed Play & Code collection of offline games for young coders.
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * No ads, no links out, no accounts, no purchases, no scores, no timers, no losing. Pure creative play.
+  * Saves only to this browser: settings, Game Master Lab values, coloring fills and a gallery of up to
+    12 doodles (localStorage key "magicDoodleSave1"). "Save as picture" downloads a PNG file, fully local.
+  * All artwork is original, drawn with simple canvas shapes.
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#ffb8d9;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>🎨 Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#ffe4f1 0%,#fff6e5 50%,#e0f2fe 100%);font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07);animation:wiggle .45s ease}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+  .frame{border:6px solid #fff;border-radius:1.2rem;box-shadow:0 8px 0 rgba(0,0,0,.13);background:#fff}
+  @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-2.5deg) scale(1.05)}75%{transform:rotate(2.5deg) scale(1.05)}}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  .swatch{width:48px;height:48px;border-radius:9999px;border:4px solid #fff;box-shadow:0 3px 0 rgba(0,0,0,.18);cursor:pointer;transition:transform .1s;flex:0 0 auto}
+  .swatch:hover{animation:wiggle .4s ease}
+  .swatch.sel{outline:5px solid #f59e0b;transform:scale(1.12)}
+  .swatch.rainbowbg{background:conic-gradient(#f87171,#fbbf24,#fde047,#4ade80,#60a5fa,#a78bfa,#f472b6,#f87171);font-size:22px;line-height:1}
+  .tbtn{min-width:52px;height:52px;border-radius:1rem;border:4px solid #fff;background:rgba(255,255,255,.9);box-shadow:0 3px 0 rgba(0,0,0,.15);cursor:pointer;font-size:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-family:inherit;transition:transform .1s}
+  .tbtn:hover{animation:wiggle .4s ease}
+  .tbtn.sel{outline:5px solid #f59e0b;background:#fef3c7}
+  .tbtn:disabled{opacity:.4;cursor:not-allowed}
+  .dot{border-radius:9999px;background:#334155;display:inline-block}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .lab-slider{width:100%;height:34px;accent-color:#f59e0b;cursor:pointer}
+  .scroll-x::-webkit-scrollbar{height:6px}
+  .scroll-x::-webkit-scrollbar-thumb{background:#f59e0b;border-radius:3px}
+</style>
+</head>
+<body>
+<div id="app" class="font-kid select-none">
+  <div class="min-h-screen" :style="appBg">
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" class="fixed left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none px-4 top-4">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center relative">
+    <div class="absolute top-6 left-8 text-4xl pointer-events-none opacity-70"><span class="bob">🖌️</span></div>
+    <div class="absolute top-10 right-10 text-4xl pointer-events-none opacity-70"><span class="bob" style="animation-delay:.5s">🖍️</span></div>
+    <div class="absolute bottom-16 left-16 text-3xl pointer-events-none opacity-60"><span class="bob" style="animation-delay:.9s">✨</span></div>
+    <div class="text-6xl md:text-7xl"><span class="bob">🎨</span><span class="bob" style="animation-delay:.3s">🦄</span><span class="bob" style="animation-delay:.6s">🌈</span></div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold drop-shadow-[0_3px_0_rgba(0,0,0,.25)]" :class="inkCls">Magic Doodle</h1>
+      <p class="font-bold mt-2 text-lg drop-shadow" :class="inkCls">Draw, color and make sparkly art!</p>
+    </div>
+    <div class="flex flex-col gap-3 w-72">
+      <button class="btn btn-green btn-xl" @click="go('free')">🖌️ Free Draw</button>
+      <button class="btn btn-pink btn-xl" @click="go('color')">🎨 Coloring</button>
+      <button class="btn btn-amber btn-xl" @click="openLab">🛠️ Game Master</button>
+      <button class="btn btn-blue btn-xl" @click="go('gallery')">🖼️ Gallery <span class="bg-white/25 rounded-full px-2 text-sm">{{gallery.length}}</span></button>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="text-xs font-bold mt-2" :class="subInkCls">🌱 offline · no ads · just fun</div>
+    <div class="text-xs font-bold absolute bottom-3" :class="subInkCls">🎨 Play &amp; Code · made with ❤️ for young coders · v1.1</div>
+  </div>
+
+  <!-- ============ FREE DRAW ============ -->
+  <div v-else-if="screen==='free'" class="max-w-5xl mx-auto p-2 md:p-4 flex flex-col gap-3 min-h-screen">
+    <div class="flex items-center gap-2 flex-wrap">
+      <button class="btn btn-white !px-3 !py-1.5" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold drop-shadow" :class="inkCls">🖌️ Free Draw</h1>
+      <button class="btn btn-green !px-4 !py-2 text-sm ml-auto" @click="saveToGallery">💾 Save to Gallery</button>
+      <button class="btn btn-red !px-4 !py-2 text-sm" @click="clearTap">{{clearLabel}}</button>
+    </div>
+
+    <div class="frame relative overflow-hidden mx-auto w-full" style="max-width:900px">
+      <canvas ref="bgCv" class="w-full block"></canvas>
+      <canvas ref="drawCv" class="absolute inset-0 w-full h-full"></canvas>
+      <canvas ref="fxCv" class="absolute inset-0 w-full h-full" style="touch-action:none"
+              @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @contextmenu.prevent></canvas>
+    </div>
+    <p class="text-center text-sm font-bold drop-shadow" :class="inkCls">{{freeHint}}</p>
+
+    <div class="panel !p-3 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-black text-slate-500 w-14">Colors</span>
+        <button v-for="p in palette" :key="p.c" class="swatch" :class="{sel: color===p.c && tool!=='eraser'}" :style="{background:p.c}" :title="p.n" @click="pickColor(p.c)"></button>
+        <button class="swatch rainbowbg" :class="{sel: color==='rainbow' && tool!=='eraser'}" title="Rainbow magic brush" @click="pickColor('rainbow')">🌈</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-black text-slate-500 w-14">Size</span>
+        <button v-for="(s,i) in sizes" :key="i" class="tbtn" :class="{sel: sizeIdx===i}" @click="pickSize(i)"><span class="dot" :style="{width:(s*1.6)+'px',height:(s*1.6)+'px'}"></span></button>
+        <button class="tbtn" :class="{sel: tool==='eraser'}" title="Eraser" @click="setEraser">🧽</button>
+        <button class="tbtn" title="Undo" :disabled="!canUndo" @click="undo">↩️</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-black text-slate-500 w-14">Stamps</span>
+        <button v-for="st in stamps" :key="st" class="tbtn" :class="{sel: tool==='stamp' && stamp===st}" @click="pickStamp(st)">{{st}}</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-black text-slate-500 w-14">Paper</span>
+        <button v-for="pp in paperList" :key="pp.k" class="tbtn !text-base !px-3" :class="{sel: paper===pp.k}" @click="pickPaper(pp.k)">{{pp.e}} {{pp.n}}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ COLORING ============ -->
+  <div v-else-if="screen==='color'" class="max-w-5xl mx-auto p-2 md:p-4 flex flex-col gap-3 min-h-screen">
+    <div class="flex items-center gap-2 flex-wrap">
+      <button class="btn btn-white !px-3 !py-1.5" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold drop-shadow" :class="inkCls">🎨 Coloring</h1>
+      <span class="panel font-bold text-sm">{{curPage.emoji}} {{curPage.name}}</span>
+      <button class="btn btn-green !px-4 !py-2 text-sm ml-auto" @click="saveToGallery">💾 Save</button>
+      <button class="btn btn-amber !px-4 !py-2 text-sm" @click="pageResetTap">{{pageResetLabel}}</button>
+    </div>
+
+    <div class="flex gap-2 overflow-x-auto scroll-x pb-1">
+      <button v-for="pg in pageList" :key="pg.id" class="tbtn !h-auto !py-2 !px-3 flex-col !text-base leading-tight" :class="{sel: colorPage===pg.i}" @click="pickPage(pg.i)">
+        <span class="text-2xl">{{pg.emoji}}</span>
+        <span class="text-[11px] font-black text-slate-600">{{pg.name}}</span>
+      </button>
+    </div>
+
+    <div class="frame overflow-hidden mx-auto w-full" style="max-width:900px">
+      <canvas ref="colorCv" class="w-full block" style="touch-action:none" @pointerdown="fillDown" @contextmenu.prevent></canvas>
+    </div>
+    <p class="text-center text-sm font-bold drop-shadow" :class="inkCls">Painting with {{colorName}} — tap a part of the picture! ✨</p>
+
+    <div class="panel !p-3 flex flex-wrap items-center gap-2 justify-center">
+      <button v-for="p in palette" :key="p.c" class="swatch" :class="{sel: color===p.c}" :style="{background:p.c}" :title="p.n" @click="pickColor(p.c)"></button>
+      <button class="swatch rainbowbg" :class="{sel: color==='rainbow'}" title="Rainbow surprise" @click="pickColor('rainbow')">🌈</button>
+    </div>
+  </div>
+
+  <!-- ============ GALLERY ============ -->
+  <div v-else-if="screen==='gallery'" class="max-w-5xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold drop-shadow" :class="inkCls">🖼️ Gallery</h1>
+      <span class="panel font-bold ml-auto text-sm">{{gallery.length}} / {{galleryMax}}</span>
+    </div>
+
+    <div v-if="gallery.length===0" class="panel !p-8 flex flex-col items-center gap-4 text-center">
+      <div class="text-6xl">🎨</div>
+      <p class="font-bold text-slate-600">No doodles yet — go make some magic!</p>
+      <button class="btn btn-green" @click="go('free')">🖌️ Start Drawing</button>
+    </div>
+
+    <template v-else>
+      <p v-if="galleryFull" class="text-center text-xs font-bold drop-shadow" :class="inkCls">Gallery full? That's okay — the oldest doodle flies away to make room 🕊️</p>
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <button v-for="g in gallery" :key="g.id" class="frame !p-0 overflow-hidden transition-transform active:scale-95 hover:-translate-y-1" @click="openView(g)">
+          <img :src="g.png" class="w-full block" alt="doodle">
+        </button>
+      </div>
+    </template>
+  </div>
+
+  <!-- ============ VIEW DOODLE ============ -->
+  <div v-else-if="screen==='view'" class="max-w-4xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen items-center justify-center">
+    <div class="flex items-center gap-3 self-stretch flex-wrap">
+      <button class="btn btn-white" @click="go('gallery')">⬅ Back to Gallery</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold drop-shadow" :class="inkCls">🖼️ Your Doodle</h1>
+    </div>
+    <template v-if="viewing">
+      <div class="frame overflow-hidden max-w-full">
+        <img :src="viewing.png" class="w-full block max-h-[65vh] object-contain" alt="doodle">
+      </div>
+      <div class="flex gap-3 flex-wrap justify-center">
+        <button class="btn btn-blue" @click="downloadItem">⬇️ Save as picture</button>
+        <button class="btn btn-red" @click="deleteTap">{{delLabel}}</button>
+      </div>
+    </template>
+    <div v-else class="panel !p-6 flex flex-col items-center gap-3 text-center">
+      <div class="text-5xl">🕊️</div>
+      <p class="font-bold text-slate-600">That doodle went bye-bye!</p>
+      <button class="btn btn-white" @click="go('gallery')">⬅ Back to Gallery</button>
+    </div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold drop-shadow" :class="inkCls">❓ How to Play</h1>
+    </div>
+    <div class="panel !p-5 flex flex-col gap-4 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="text-3xl">🖌️</span><p><b>Free Draw:</b> pick a color (or the 🌈 rainbow brush — it sparkles!) and draw with your finger or mouse. Add emoji stamps, change the paper, undo oopsies, then 💾 save your doodle to the Gallery.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🎨</span><p><b>Coloring:</b> pick a cute page, pick a color, then tap any part of the picture to fill it in. Tap again with a new color to change it, or reset the page to start fresh.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🖼️</span><p><b>Gallery:</b> see all your saved doodles. Tap one to see it big, ⬇️ keep it as a picture file on the computer, or 🗑️ say bye-bye (tap delete twice — just in case!).</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🛠️</span><p><b>Game Master Lab:</b> be the boss of the app! Move sliders to change the brush, the rainbow and the stamps — and try typing real code, like <b>brushSize = 2</b>.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">💛</span><p>No scores, no losing, no waiting — just happy drawing. Every doodle is perfect!</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="max-w-md mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold drop-shadow" :class="inkCls">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases the gallery, coloring fills and settings. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center">
+          <span class="text-xs font-black text-rose-600">Really erase it all?</span>
+          <button class="btn btn-red !py-1.5 !px-3 text-xs" @click="doReset">Yes</button>
+          <button class="btn btn-white !py-1.5 !px-3 text-xs" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">Doodles saved: {{profile.savedCount}} · In gallery: {{gallery.length}} · v1.1</div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="max-w-3xl md:max-w-5xl mx-auto p-4 md:p-6 flex flex-col gap-3 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold drop-shadow" :class="inkCls">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="font-bold text-sm text-center -mt-1 drop-shadow" :class="inkCls">You are the boss of this app! Move a slider, then go draw and feel the difference.</p>
+
+    <div class="grid md:grid-cols-2 gap-3 items-start">
+      <!-- sliders + theme picker -->
+      <div class="panel !p-4 flex flex-col gap-3">
+        <div v-for="d in LAB_DEFS" :key="d.key">
+          <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+            <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+            <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">{{d.unit}}{{lab[d.key]}}</span>
+          </div>
+          <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+                 :value="lab[d.key]" @input="setLab(d.key,$event)">
+          <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>{{d.unit}}{{d.min}}</span><span class="text-slate-500">normal = {{d.unit}}{{d.def}}</span><span>{{d.unit}}{{d.max}}</span></div>
+        </div>
+        <div>
+          <div class="font-black text-slate-700 text-sm mb-2">🌈 Page theme <span class="font-bold text-slate-400 text-xs">· changes the whole sky behind the app, right now!</span></div>
+          <div class="flex gap-2">
+            <button v-for="s in LAB_SKIES" :key="s.key" class="btn flex-1 !py-2 text-sm whitespace-nowrap"
+                    :class="lab.sky===s.key?'btn-purple':'btn-white'" @click="pickSky(s.key)">{{s.icon}} {{s.name}}</button>
+          </div>
+        </div>
+        <button class="btn btn-red text-sm self-start" @click="resetLab">↩️ Reset to normal</button>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <!-- lesson cards -->
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">📦</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Variables</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">A variable is a named number. <b>brushSize</b> multiplies how fat your brush is — set it to 3 and draw a GIANT line!</p>
+          </div>
+        </div>
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">⚡</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Events &amp; functions</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">Every tap on the paper is an <i>event</i> that runs a tiny recipe called a function. The stamp recipe reads <b>stampSize</b> to pick the emoji size — the same recipe, bigger result!</p>
+          </div>
+        </div>
+        <div class="panel !p-3 flex gap-3 items-start">
+          <div class="text-2xl">🔁</div>
+          <div>
+            <div class="font-black text-slate-700 text-sm">Loops</div>
+            <p class="text-xs font-bold text-slate-500 mt-0.5">The 🌈 rainbow brush loops around the color wheel, stepping the hue a little every bit of your stroke. <b>rainbowSpeed</b> is the step size — big steps zoom through the rainbow!</p>
+          </div>
+        </div>
+
+        <!-- mini code box -->
+        <div class="panel !p-4 flex flex-col gap-2">
+          <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+          <p class="text-xs font-bold text-slate-500">Try <b>brushSize = 2</b>, or <b>stampSize = 1 + 1</b>, or even <b>sparkles = brushSize / 2</b> — then press Enter.</p>
+          <div class="flex gap-2">
+            <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+                   class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+                   placeholder="brushSize = 2">
+            <button class="btn btn-green !py-2 text-sm" @click="runLabCode">Run ▶</button>
+          </div>
+          <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+          <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   MAGIC DOODLE — drawing, coloring and gallery
+   (100% original art, built from simple canvas shapes)
+   ============================================================ */
+
+// --- parental knobs --------------------------------------------------------
+const SAVE_KEY    = 'magicDoodleSave1';
+const MAX_STROKES = 20;   // undo stack depth in Free Draw
+const GALLERY_MAX = 12;   // doodles kept in the gallery
+const FILL_MS     = 220;  // coloring fill fade-in time
+const CANVAS_W    = 1000, CANVAS_H = 650;
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+
+// --- Game Master Lab -------------------------------------------------------
+// Sliders bound to real drawing constants. Values live in `lab` inside the
+// save and multiply the base values (1 = normal).
+const LAB_DEFS = [
+  {key:'brushSize',    name:'Brush Size',     icon:'🖌️', min:0.5, max:3,   step:0.1, def:1, unit:'×', hint:'how fat every brush stroke is'},
+  {key:'rainbowSpeed', name:'Rainbow Speed',  icon:'🌈', min:0.2, max:3,   step:0.1, def:1, unit:'×', hint:'how fast the rainbow brush changes color'},
+  {key:'stampSize',    name:'Stamp Size',     icon:'🐾', min:0.5, max:2.5, step:0.1, def:1, unit:'×', hint:'how big emoji stamps land'},
+  {key:'sparkles',     name:'Sparkles',       icon:'✨', min:0,   max:3,   step:0.5, def:1, unit:'×', hint:'how many sparkles the rainbow brush sprinkles'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_SKIES = [
+  {key:'candy',  icon:'🍬', name:'Candy'},
+  {key:'sunset', icon:'🌇', name:'Sunset'},
+  {key:'night',  icon:'🌌', name:'Starry'}
+];
+function defaultLab(){
+  const lab={ sky:'candy' };
+  for(const d of LAB_DEFS) lab[d.key]=d.def;
+  return lab;
+}
+
+const PALETTE = [
+  {c:'#f87171', n:'Red'},    {c:'#fb923c', n:'Orange'}, {c:'#fde047', n:'Yellow'},
+  {c:'#4ade80', n:'Green'},  {c:'#2dd4bf', n:'Teal'},   {c:'#60a5fa', n:'Blue'},
+  {c:'#a78bfa', n:'Purple'}, {c:'#f472b6', n:'Pink'},   {c:'#c08552', n:'Brown'},
+  {c:'#94a3b8', n:'Gray'},   {c:'#334155', n:'Dark'},   {c:'#ffffff', n:'White'}
+];
+const SIZES  = [6, 14, 26];
+const STAMPS = ['🐾','⭐','🌸','🦋','🐟','☀️','❤️','🐱','🚀','🌈'];
+const TAU = Math.PI*2;
+
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function dist(a,b){ return Math.hypot(b.x-a.x, b.y-a.y); }
+function midp(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+// seeded pseudo-random so the night-sky stars never move between visits
+function seededRand(seed){ let s=seed; return function(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
+
+/* ------------------- papers (backgrounds) ------------------- */
+const PAPERS = {
+  cream: { base:'#fff8ea', paint(ctx){
+    ctx.fillStyle='#fff8ea'; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+  }},
+  meadow: { base:'#fdf6e3', paint(ctx){
+    ctx.fillStyle='#fdf6e3'; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+    let g=ctx.createLinearGradient(0,0,0,130);
+    g.addColorStop(0,'rgba(150,205,250,.85)'); g.addColorStop(1,'rgba(150,205,250,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,CANVAS_W,130);
+    ctx.fillStyle='rgba(255,255,255,.8)';
+    ctx.beginPath(); ctx.ellipse(80,36,58,20,0,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(920,58,64,22,0,0,TAU); ctx.fill();
+    g=ctx.createLinearGradient(0,CANVAS_H-110,0,CANVAS_H);
+    g.addColorStop(0,'rgba(158,211,111,0)'); g.addColorStop(1,'rgba(158,211,111,.95)');
+    ctx.fillStyle=g; ctx.fillRect(0,CANVAS_H-110,CANVAS_W,110);
+    ctx.strokeStyle='rgba(101,152,64,.7)'; ctx.lineWidth=3; ctx.lineCap='round';
+    for(let i=0;i<26;i++){
+      const x=20+i*38, h=10+((i*13)%14);
+      ctx.beginPath(); ctx.moveTo(x,CANVAS_H); ctx.lineTo(x+4,CANVAS_H-h); ctx.stroke();
+    }
+    ctx.fillStyle='#f9a8d4';
+    ctx.beginPath(); ctx.arc(40,CANVAS_H-26,7,0,TAU); ctx.fill();
+    ctx.fillStyle='#fde047';
+    ctx.beginPath(); ctx.arc(962,CANVAS_H-20,6,0,TAU); ctx.fill();
+  }},
+  night: { base:'#1d2a52', paint(ctx){
+    ctx.fillStyle='#1d2a52'; ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+    const r=seededRand(20240820);
+    ctx.fillStyle='#fef9c3';
+    for(let i=0;i<52;i++){
+      const x=r()*CANVAS_W, y=r()*CANVAS_H, rad=0.7+r()*1.6;
+      ctx.globalAlpha=0.35+r()*0.5;
+      ctx.beginPath(); ctx.arc(x,y,rad,0,TAU); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    ctx.fillStyle='#fdf6c8';                       // crescent moon, top right
+    ctx.beginPath(); ctx.arc(905,70,34,0,TAU); ctx.fill();
+    ctx.fillStyle='#1d2a52';
+    ctx.beginPath(); ctx.arc(920,60,30,0,TAU); ctx.fill();
+  }}
+};
+
+/* ------------------- Path2D shape helpers ------------------- */
+function P_circle(cx,cy,r){ const p=new Path2D(); p.arc(cx,cy,r,0,TAU); return p; }
+function P_ell(cx,cy,rx,ry,rot){ const p=new Path2D(); p.ellipse(cx,cy,rx,ry,rot||0,0,TAU); return p; }
+function P_rr(x,y,w,h,r){
+  const p=new Path2D(); r=Math.min(r,w/2,h/2);
+  p.moveTo(x+r,y); p.arcTo(x+w,y,x+w,y+h,r); p.arcTo(x+w,y+h,x,y+h,r);
+  p.arcTo(x,y+h,x,y,r); p.arcTo(x,y,x+w,y,r); p.closePath(); return p;
+}
+function P_poly(pts){ const p=new Path2D(); p.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) p.lineTo(pts[i][0],pts[i][1]); p.closePath(); return p; }
+function P_star(cx,cy,r){ const p=new Path2D();
+  for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr2=(i%2)?r*0.45:r;
+    const x=cx+Math.cos(a)*rr2, y=cy+Math.sin(a)*rr2;
+    if(i) p.lineTo(x,y); else p.moveTo(x,y); }
+  p.closePath(); return p; }
+function ln(c,x1,y1,x2,y2,w){ c.lineWidth=w||4; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+
+/* ------------------- 10 original coloring pages -------------------
+   Every page is invented here from circles, ellipses, rounded boxes and
+   simple polygons — round, cute, bold outlines. Regions are listed in
+   paint order (later regions sit on top; taps hit the topmost first). */
+const PAGES = [
+  { id:'cat', name:'Cat', emoji:'🐱',
+    make:()=>[
+      {label:'Tail',  path:P_circle(770,540,75)},
+      {label:'Body',  path:P_ell(500,540,170,105)},
+      {label:'Tummy', path:P_ell(500,540,90,75)},
+      {label:'Head',  path:P_circle(500,300,150)},
+      {label:'Ear L', path:P_poly([[398,210],[358,70],[495,175]])},
+      {label:'Ear R', path:P_poly([[602,210],[642,70],[505,175]])},
+      {label:'Inner Ear L', path:P_poly([[412,190],[390,105],[478,168]])},
+      {label:'Inner Ear R', path:P_poly([[588,190],[610,105],[522,168]])},
+      {label:'Eye L', path:P_circle(448,285,24)},
+      {label:'Eye R', path:P_circle(552,285,24)},
+      {label:'Nose',  path:P_poly([[484,330],[516,330],[500,352]])}
+    ],
+    lines(c){
+      ln(c,415,320,295,300); ln(c,415,340,290,345);
+      ln(c,585,320,705,300); ln(c,585,340,710,345);
+      c.beginPath(); c.arc(488,360,13,0.2,Math.PI-0.2); c.stroke();
+      c.beginPath(); c.arc(512,360,13,0.2,Math.PI-0.2); c.stroke();
+    } },
+  { id:'fish', name:'Fish', emoji:'🐟',
+    make:()=>[
+      {label:'Tail',   path:P_poly([[630,330],[860,225],[805,330],[860,435]])},
+      {label:'Top Fin',path:P_poly([[415,205],[505,70],[600,200]])},
+      {label:'Body',   path:P_ell(470,330,225,145)},
+      {label:'Eye',    path:P_circle(345,280,28)},
+      {label:'Side Fin',path:P_ell(490,385,65,30,0.5)},
+      {label:'Bubble 1',path:P_circle(790,170,26)},
+      {label:'Bubble 2',path:P_circle(850,115,18)},
+      {label:'Bubble 3',path:P_circle(750,100,12)}
+    ],
+    lines(c){
+      c.beginPath(); c.arc(540,300,44,-0.7,0.7); c.stroke();
+      c.beginPath(); c.arc(560,350,44,-0.7,0.7); c.stroke();
+      c.beginPath(); c.arc(535,400,42,-0.7,0.7); c.stroke();
+      c.beginPath(); c.arc(268,345,20,0.4,2.7); c.stroke();
+    } },
+  { id:'butterfly', name:'Butterfly', emoji:'🦋',
+    make:()=>[
+      {label:'Wing LL', path:P_ell(380,445,150,125)},
+      {label:'Wing LR', path:P_ell(620,445,150,125)},
+      {label:'Wing UL', path:P_ell(345,235,155,140)},
+      {label:'Wing UR', path:P_ell(655,235,155,140)},
+      {label:'Spot UL', path:P_circle(300,225,34)},
+      {label:'Spot UR', path:P_circle(700,225,34)},
+      {label:'Spot LL', path:P_circle(345,465,26)},
+      {label:'Spot LR', path:P_circle(655,465,26)},
+      {label:'Body',    path:P_ell(500,370,40,175)},
+      {label:'Head',    path:P_circle(500,170,46)}
+    ],
+    lines(c){
+      ln(c,486,130,448,66); ln(c,514,130,552,66);
+      c.fillStyle='#3f3d56';
+      c.beginPath(); c.arc(446,62,7,0,TAU); c.fill();
+      c.beginPath(); c.arc(554,62,7,0,TAU); c.fill();
+    } },
+  { id:'rocket', name:'Rocket', emoji:'🚀',
+    make:()=>[
+      {label:'Flame',      path:P_poly([[452,530],[500,645],[548,530]])},
+      {label:'Flame Core', path:P_poly([[478,535],[500,615],[522,535]])},
+      {label:'Fin L',      path:P_poly([[335,450],[275,600],[400,540]])},
+      {label:'Fin R',      path:P_poly([[665,450],[725,600],[600,540]])},
+      {label:'Body',       path:P_rr(395,170,210,380,105)},
+      {label:'Nose Cone',  path:P_poly([[395,225],[500,55],[605,225]])},
+      {label:'Window',     path:P_circle(500,310,60)},
+      {label:'Window Glow',path:P_circle(500,310,38)},
+      {label:'Star L',     path:P_star(180,170,34)},
+      {label:'Star R',     path:P_star(835,290,28)}
+    ],
+    lines(c){ ln(c,395,470,605,470); } },
+  { id:'flower', name:'Flower', emoji:'🌸',
+    make:()=>{
+      const parts=[
+        {label:'Stem',    path:P_rr(480,340,40,195,20)},
+        {label:'Leaf L',  path:P_ell(395,455,80,35,-0.5)},
+        {label:'Leaf R',  path:P_ell(605,455,80,35,0.5)},
+        {label:'Pot',     path:P_poly([[385,530],[615,530],[582,640],[418,640]])},
+        {label:'Pot Rim', path:P_rr(365,505,270,48,16)}
+      ];
+      for(let k=0;k<6;k++){
+        const a=k*Math.PI/3, cx=500+105*Math.cos(a), cy=240+105*Math.sin(a);
+        parts.push({label:'Petal '+(k+1), path:P_ell(cx,cy,58,88,a)});
+      }
+      parts.push({label:'Center', path:P_circle(500,240,55)});
+      return parts;
+    },
+    lines(c){
+      c.fillStyle='#3f3d56';
+      c.beginPath(); c.arc(484,230,5,0,TAU); c.fill();
+      c.beginPath(); c.arc(516,230,5,0,TAU); c.fill();
+      c.beginPath(); c.arc(500,242,14,0.3,Math.PI-0.3); c.stroke();
+      ln(c,390,560,610,560);
+    } },
+  { id:'house', name:'House', emoji:'🏠',
+    make:()=>[
+      {label:'Grass',    path:P_rr(140,555,720,58,29)},
+      {label:'Chimney',  path:P_rr(595,150,62,110,10)},
+      {label:'Roof',     path:P_poly([[270,300],[500,120],[730,300]])},
+      {label:'Wall',     path:P_rr(310,295,380,255,12)},
+      {label:'Door',     path:P_rr(452,415,96,135,16)},
+      {label:'Knob',     path:P_circle(528,487,8)},
+      {label:'Window L', path:P_rr(338,335,88,88,10)},
+      {label:'Window R', path:P_rr(574,335,88,88,10)},
+      {label:'Sun',      path:P_circle(835,115,52)}
+    ],
+    lines(c){
+      ln(c,382,335,382,423); ln(c,338,379,426,379);
+      ln(c,618,335,618,423); ln(c,574,379,662,379);
+      for(let i=0;i<8;i++){ const a=i*Math.PI/4;
+        ln(c,835+Math.cos(a)*64,115+Math.sin(a)*64,835+Math.cos(a)*84,115+Math.sin(a)*84); }
+    } },
+  { id:'tree', name:'Tree', emoji:'🌳',
+    make:()=>[
+      {label:'Ground',     path:P_rr(150,600,700,50,24)},
+      {label:'Trunk',      path:P_rr(462,420,76,190,22)},
+      {label:'Leaves L',   path:P_circle(385,320,115)},
+      {label:'Leaves R',   path:P_circle(615,320,115)},
+      {label:'Leaves Top', path:P_circle(500,235,135)},
+      {label:'Apple 1',    path:P_circle(432,300,22)},
+      {label:'Apple 2',    path:P_circle(565,355,22)},
+      {label:'Apple 3',    path:P_circle(505,185,20)}
+    ],
+    lines(c){ ln(c,485,445,485,585); ln(c,515,445,515,585); } },
+  { id:'dino', name:'Dino', emoji:'🦕',
+    make:()=>[
+      {label:'Tail',    path:P_poly([[690,340],[880,245],[815,395]])},
+      {label:'Spike 1', path:P_poly([[375,290],[418,205],[458,283]])},
+      {label:'Spike 2', path:P_poly([[465,268],[510,182],[552,262]])},
+      {label:'Spike 3', path:P_poly([[562,272],[608,192],[648,292]])},
+      {label:'Neck',    path:P_ell(345,330,60,95)},
+      {label:'Body',    path:P_ell(540,400,215,135)},
+      {label:'Tummy',   path:P_ell(545,440,125,75)},
+      {label:'Leg Back', path:P_rr(435,460,68,120,22)},
+      {label:'Leg Front',path:P_rr(605,460,68,120,22)},
+      {label:'Head',    path:P_circle(285,255,92)},
+      {label:'Eye',     path:P_circle(252,235,18)}
+    ],
+    lines(c){
+      c.beginPath(); c.arc(262,292,34,0.3,1.6); c.stroke();
+      c.fillStyle='#3f3d56'; c.beginPath(); c.arc(230,222,4,0,TAU); c.fill();
+      ln(c,452,580,452,548,3); ln(c,470,580,470,550,3);
+      ln(c,622,580,622,548,3); ln(c,640,580,640,550,3);
+    } },
+  { id:'car', name:'Car', emoji:'🚗',
+    make:()=>[
+      {label:'Roof',         path:P_poly([[350,330],[405,225],[595,225],[645,330]])},
+      {label:'Window Front', path:P_poly([[368,318],[412,242],[478,242],[478,318]])},
+      {label:'Window Back',  path:P_poly([[498,242],[588,242],[628,318],[498,318]])},
+      {label:'Body',         path:P_rr(280,315,440,130,42)},
+      {label:'Wheel Front',  path:P_circle(370,448,56)},
+      {label:'Wheel Back',   path:P_circle(628,448,56)},
+      {label:'Hub Front',    path:P_circle(370,448,24)},
+      {label:'Hub Back',     path:P_circle(628,448,24)},
+      {label:'Headlight',    path:P_rr(285,340,34,26,9)},
+      {label:'Taillight',    path:P_rr(678,340,28,26,9)}
+    ],
+    lines(c){ ln(c,205,514,795,514,5); } },
+  { id:'crown', name:'Crown', emoji:'👑',
+    make:()=>[
+      {label:'Crown',      path:P_poly([[330,505],[330,255],[430,375],[500,205],[570,375],[670,255],[670,505]])},
+      {label:'Band',       path:P_rr(308,505,384,75,18)},
+      {label:'Jewel L',    path:P_circle(330,242,30)},
+      {label:'Jewel Mid',  path:P_circle(500,192,34)},
+      {label:'Jewel R',    path:P_circle(670,242,30)},
+      {label:'Gem 1',      path:P_circle(430,543,24)},
+      {label:'Gem 2',      path:P_circle(570,543,24)},
+      {label:'Sparkle L',  path:P_star(215,340,28)},
+      {label:'Sparkle R',  path:P_star(795,290,26)}
+    ],
+    lines(c){ ln(c,330,300,670,300); } }
+];
+function pageRegions(pg){ if(!pg._regions) pg._regions=pg.make(); return pg._regions; }
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click': this.tone(480,620,0.05,'sine',0.05); break;
+      case 'pop':   this.tone(600,1000,0.09,'triangle',0.09); break;
+      case 'fill':  this.tone(360,540,0.12,'sine',0.08); break;
+      case 'save':  this.tone(660,660,0.09,'triangle',0.08); this.tone(880,880,0.12,'triangle',0.08,0.1); break;
+      case 'oops':  this.tone(300,180,0.18,'sine',0.07); break;
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============================ SAVE / LOAD ============================ */
+function defaultSave(){ return { sound:true, savedCount:0, gallery:[], fills:{}, lab:defaultLab() }; }
+function loadSave(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p=JSON.parse(raw), d=defaultSave();
+      return {
+        sound: p.sound!==false,
+        savedCount: p.savedCount||0,
+        gallery: Array.isArray(p.gallery)? p.gallery.slice(0,GALLERY_MAX) : [],
+        fills: (p.fills && typeof p.fills==='object')? p.fills : {},
+        lab: Object.assign(defaultLab(), p.lab||{})
+      };
+    }
+  }catch(e){}
+  return defaultSave();
+}
+
+/* ============================ VUE APP ============================ */
+const app = Vue.createApp({
+  data(){
+    const s=loadSave();
+    return {
+      screen:'menu',
+      profile:{ sound:s.sound, savedCount:s.savedCount },
+      gallery:s.gallery,
+      fills:s.fills,
+      lab:s.lab,
+      LAB_DEFS, LAB_SKIES,
+      labCode:'', labMsg:'', labMsgOk:false,
+      palette:PALETTE, sizes:SIZES, stamps:STAMPS,
+      paperList:[{k:'cream',n:'Paper',e:'📄'},{k:'meadow',n:'Meadow',e:'🌼'},{k:'night',n:'Night',e:'🌙'}],
+      galleryMax:GALLERY_MAX,
+      strokes:[], tool:'pen', color:'#f472b6', sizeIdx:1, stamp:'🐾', paper:'cream',
+      clearArmed:false,
+      colorPage:0, pageResetArmed:false,
+      viewId:null, delArmed:false,
+      resetArmed:false,
+      toasts:[], toastSeq:0
+    };
+  },
+  computed:{
+    appBg(){
+      const s=this.lab.sky;
+      if(s==='sunset') return {background:'linear-gradient(180deg,#fda4af 0%,#fdba74 55%,#fde68a 100%)'};
+      if(s==='night')  return {background:'linear-gradient(180deg,#1e1b4b 0%,#3730a3 55%,#64748b 100%)'};
+      return {};
+    },
+    darkTheme(){ return this.lab.sky==='night'; },
+    inkCls(){ return this.darkTheme ? 'text-white' : 'text-slate-800'; },
+    subInkCls(){ return this.darkTheme ? 'text-white/80' : 'text-slate-800/80'; },
+    labReadout(){
+      const l=this.lab;
+      return 'now → brushSize ×'+l.brushSize+' · rainbowSpeed ×'+l.rainbowSpeed+' · stampSize ×'+l.stampSize+' · sparkles ×'+l.sparkles;
+    },
+    canUndo(){ return this.strokes.length>0; },
+    clearLabel(){ return this.clearArmed ? 'Really clear?' : '🗑️ Clear'; },
+    pageResetLabel(){ return this.pageResetArmed ? 'Really reset?' : '🔄 Reset page'; },
+    delLabel(){ return this.delArmed ? 'Really say bye?' : '🗑️ Delete'; },
+    galleryFull(){ return this.gallery.length>=GALLERY_MAX; },
+    pageList(){ return PAGES.map((p,i)=>({i, id:p.id, name:p.name, emoji:p.emoji})); },
+    curPage(){ return PAGES[this.colorPage]; },
+    pageHasFills(){
+      const f=this.fills[PAGES[this.colorPage].id];
+      return !!f && Object.keys(f).length>0;
+    },
+    viewing(){ return this.gallery.find(g=>g.id===this.viewId)||null; },
+    colorName(){
+      if(this.color==='rainbow') return 'Rainbow';
+      const p=this.palette.find(x=>x.c===this.color);
+      return p? p.n : 'a pretty color';
+    },
+    freeHint(){
+      if(this.tool==='stamp') return 'Tap the paper to stamp '+this.stamp+'!';
+      if(this.tool==='eraser') return 'The sponge rubs the paper clean 🧽';
+      if(this.color==='rainbow') return 'Rainbow magic brush — sparkles while you draw! ✨';
+      return 'Draw with your finger or mouse! ✨';
+    }
+  },
+  created(){
+    // non-reactive engine state (never shown in the template)
+    this.cur=null; this._pid=null;
+    this.particles=[]; this.wobbles=[]; this.fxRunning=false; this._fxLast=0;
+    this.animFill=null; this.animRunning=false;
+    this.bgX=null; this.drX=null; this.fxX=null; this.colX=null;
+    this._gid=this.gallery.reduce((m,g)=>Math.max(m,g.id||0),0);
+    this._fxTick=this.fxTick.bind(this);
+    this._animTick=this.animTick.bind(this);
+  },
+  methods:{
+    /* ------- navigation ------- */
+    go(screen){
+      SFX.play('click');
+      this.stopLoops();
+      this.screen=screen;
+      if(screen==='free') this.$nextTick(()=>this.initFree());
+      else if(screen==='color') this.$nextTick(()=>this.initColor());
+    },
+    stopLoops(){
+      this.fxRunning=false; this.particles=[]; this.wobbles=[]; this._fxLast=0;
+      this.animFill=null; this.animRunning=false;
+      this._pid=null;
+      if(this.cur){ this.strokes.push(this.cur); this.cur=null;
+        if(this.strokes.length>MAX_STROKES) this.strokes.shift(); } // keep a half-finished stroke
+      this.clearArmed=false; this.delArmed=false; this.pageResetArmed=false;
+    },
+    pushToast(msg,emoji){
+      const id=++this.toastSeq;
+      this.toasts.push({id,msg,emoji:emoji||'🎨'});
+      setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600);
+    },
+    saveState(){
+      try{
+        localStorage.setItem(SAVE_KEY, JSON.stringify({
+          sound:this.profile.sound, savedCount:this.profile.savedCount,
+          gallery:this.gallery, fills:this.fills, lab:this.lab
+        }));
+      }catch(e){
+        this.pushToast('The shelf is full — older doodles may not stay after closing 💛','📦');
+      }
+    },
+
+    /* ------- Game Master Lab ------- */
+    openLab(){
+      SFX.play('click');
+      this.stopLoops();
+      this.labMsg=''; this.screen='lab';
+    },
+    closeLab(){ SFX.play('click'); this.screen='menu'; },
+    setLab(key,ev){
+      const d=LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v=parseFloat(ev.target.value); if(!isFinite(v)) v=d.def;
+      v=Math.max(d.min,Math.min(d.max,v));
+      this.lab[key]=Math.round(v*100)/100;
+      this.saveState();
+    },
+    pickSky(key){ this.lab.sky=key; this.saveState(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.lab, defaultLab());
+      this.saveState(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even with magic crayons!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-doodle. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like brushSize = 2'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: brushSize = 2'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off to infinity! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const valFmt=this.fmtNum(val);
+          const clamped=Math.max(def.min,Math.min(def.max,val));   // clamp to the allowed range
+          const snapped=this.fmtNum(Math.round(clamped/def.step)*def.step); // snap to the slider's steps
+          const clampedFmt=this.fmtNum(clamped);
+          const wasClamped=clampedFmt!==valFmt;
+          let note='';
+          if(snapped!==clampedFmt) note=' I snapped it to '+snapped+' — this dial moves in steps of '+def.step+'.';
+          const v=snapped;
+          this.lab[name]=v;
+          this.saveState(); SFX.play('save');
+          this.labMsg = wasClamped
+            ? '✨ '+name+' wanted to be '+valFmt+', but I kept it safe at '+v+' (allowed: '+def.min+' to '+def.max+').'+note
+            : (valFmt!==v
+              ? '✨ I snapped '+valFmt+' to '+v+' — this dial moves in steps of '+def.step+'.'
+              : '✨ Done! '+name+' = '+v+'. Go draw and feel it!');
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like stampSize = 1.5';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ------- canvas plumbing ------- */
+    setup2(cv){
+      const dpr=Math.min(2, window.devicePixelRatio||1);
+      cv.width=CANVAS_W*dpr; cv.height=CANVAS_H*dpr;
+      const c=cv.getContext('2d');
+      c.setTransform(dpr,0,0,dpr,0,0);
+      return c;
+    },
+    canvasPos(e,cv){
+      const r=cv.getBoundingClientRect();
+      return { x:(e.clientX-r.left)*CANVAS_W/r.width,
+               y:(e.clientY-r.top)*CANVAS_H/r.height };
+    },
+    styleFor(s,len){
+      if(s.erase) return PAPERS[this.paper].base;
+      if(s.color==='rainbow') return 'hsl('+((s.hue0+len*0.5*this.lab.rainbowSpeed)%360)+',85%,62%)';
+      return s.color;
+    },
+
+    /* ------- FREE DRAW ------- */
+    initFree(){
+      const bg=this.$refs.bgCv, dr=this.$refs.drawCv, fx=this.$refs.fxCv;
+      if(!bg||!dr||!fx) return;
+      this.bgX=this.setup2(bg); this.drX=this.setup2(dr); this.fxX=this.setup2(fx);
+      this.paintPaper();
+      this.replay();
+    },
+    paintPaper(){ if(this.bgX) PAPERS[this.paper].paint(this.bgX); },
+    pickPaper(k){ this.paper=k; SFX.play('click'); this.paintPaper(); this.replay(); },
+    replay(){
+      const c=this.drX; if(!c) return;
+      c.clearRect(0,0,CANVAS_W,CANVAS_H);
+      for(const s of this.strokes) this.paintItem(c,s);
+    },
+    paintItem(c,s){ if(s.stamp) this.paintStamp(c,s); else this.paintStroke(c,s); },
+    paintStamp(c,s){
+      c.font=Math.round(56*this.lab.stampSize)+'px '+EMOJI_FONT; c.textAlign='center'; c.textBaseline='middle';
+      c.fillText(s.emoji,s.x,s.y);
+    },
+    paintStroke(c,s){
+      const pts=s.points;
+      if(!pts || !pts.length) return;
+      c.lineCap='round'; c.lineJoin='round'; c.lineWidth=s.size;
+      if(pts.length===1){
+        c.fillStyle=this.styleFor(s,0);
+        c.beginPath(); c.arc(pts[0].x,pts[0].y,s.size/2,0,TAU); c.fill();
+        return;
+      }
+      let cum=0, i;
+      // first piece: straight to the first midpoint
+      cum+=dist(pts[0],pts[1]);
+      c.strokeStyle=this.styleFor(s,cum);
+      let m=midp(pts[0],pts[1]);
+      c.beginPath(); c.moveTo(pts[0].x,pts[0].y); c.lineTo(m.x,m.y); c.stroke();
+      // smoothed quadratic pieces between midpoints
+      for(i=2;i<pts.length;i++){
+        cum+=dist(pts[i-1],pts[i]);
+        c.strokeStyle=this.styleFor(s,cum);
+        const a=midp(pts[i-2],pts[i-1]), b=midp(pts[i-1],pts[i]);
+        c.beginPath(); c.moveTo(a.x,a.y);
+        c.quadraticCurveTo(pts[i-1].x,pts[i-1].y,b.x,b.y); c.stroke();
+      }
+      // tail piece to the exact end point
+      const n=pts.length-1;
+      cum+=dist(pts[n-1],pts[n]);
+      c.strokeStyle=this.styleFor(s,cum);
+      m=midp(pts[n-1],pts[n]);
+      c.beginPath(); c.moveTo(m.x,m.y); c.lineTo(pts[n].x,pts[n].y); c.stroke();
+    },
+    down(e){
+      if(this.screen!=='free' || this._pid!==null) return;
+      if(e.pointerType==='mouse' && e.button!==0) return;
+      try{ e.target.setPointerCapture(e.pointerId); }catch(err){}
+      this._pid=e.pointerId;
+      const p=this.canvasPos(e,this.$refs.fxCv);
+      if(this.tool==='stamp'){ this.addStamp(p.x,p.y); return; }
+      const size=Math.round(SIZES[this.sizeIdx]*this.lab.brushSize);
+      this.cur={stamp:false, erase:this.tool==='eraser', color:this.color,
+                size:size, points:[p], hue0:(Math.random()*360)|0, len:0};
+      const c=this.drX;
+      c.fillStyle=this.styleFor(this.cur,0);
+      c.beginPath(); c.arc(p.x,p.y,size/2,0,TAU); c.fill();
+      if(this.cur.color==='rainbow' && !this.cur.erase) this.spawnSparkles(p.x,p.y,4);
+    },
+    move(e){
+      if(this.screen!=='free' || !this.cur || e.pointerId!==this._pid) return;
+      const p=this.canvasPos(e,this.$refs.fxCv), pts=this.cur.points, last=pts[pts.length-1];
+      const d=dist(last,p); if(d<2) return;
+      pts.push(p);
+      const c=this.drX;
+      c.lineCap='round'; c.lineJoin='round'; c.lineWidth=this.cur.size;
+      this.cur.len+=d;
+      c.strokeStyle=this.styleFor(this.cur,this.cur.len);
+      c.beginPath();
+      if(pts.length===2){
+        const m=midp(pts[0],p);
+        c.moveTo(pts[0].x,pts[0].y); c.lineTo(m.x,m.y);
+      } else {
+        const n=pts.length-1, a=midp(pts[n-2],pts[n-1]), b=midp(pts[n-1],p);
+        c.moveTo(a.x,a.y); c.quadraticCurveTo(pts[n-1].x,pts[n-1].y,b.x,b.y);
+      }
+      c.stroke();
+      if(this.cur.color==='rainbow' && !this.cur.erase) this.spawnSparkles(p.x,p.y,2);
+    },
+    up(e){
+      if(e.pointerId!==this._pid) return;
+      this._pid=null;
+      if(!this.cur) return;
+      const pts=this.cur.points;
+      if(pts.length>=2){                       // tail piece to the exact end
+        const n=pts.length-1, m=midp(pts[n-1],pts[n]), d=dist(pts[n-1],pts[n]);
+        const c=this.drX;
+        c.lineCap='round'; c.lineWidth=this.cur.size;
+        this.cur.len+=d;
+        c.strokeStyle=this.styleFor(this.cur,this.cur.len);
+        c.beginPath(); c.moveTo(m.x,m.y); c.lineTo(pts[n].x,pts[n].y); c.stroke();
+      }
+      this.strokes.push(this.cur); this.cur=null;
+      if(this.strokes.length>MAX_STROKES){ this.strokes.shift(); this.replay(); }
+    },
+    pickColor(c){
+      this.color=c;
+      if(this.tool==='eraser'||this.tool==='stamp') this.tool='pen';
+      SFX.play('click');
+    },
+    pickSize(i){ this.sizeIdx=i; if(this.tool==='stamp') this.tool='pen'; SFX.play('click'); },
+    setEraser(){ this.tool='eraser'; SFX.play('click'); },
+    pickStamp(st){ this.stamp=st; this.tool='stamp'; SFX.play('click'); },
+    undo(){
+      if(!this.strokes.length) return;
+      this.strokes.pop();
+      this.replay();
+      SFX.play('click');
+    },
+    clearTap(){
+      if(!this.clearArmed){
+        this.clearArmed=true;
+        clearTimeout(this._ct);
+        this._ct=setTimeout(()=>{ this.clearArmed=false; },4000);
+        SFX.play('click');
+      } else {
+        this.clearArmed=false;
+        this.strokes=[]; this.cur=null;
+        this.replay();
+        SFX.play('oops');
+        this.pushToast('All clean — ready for a new doodle!','🧼');
+      }
+    },
+    addStamp(x,y){
+      const item={stamp:true, emoji:this.stamp, x:x, y:y};
+      this.strokes.push(item);
+      if(this.strokes.length>MAX_STROKES){ this.strokes.shift(); this.replay(); }
+      else this.paintItem(this.drX,item);
+      this.wobbles.push({emoji:this.stamp, x:x, y:y, t0:performance.now()});
+      this.ensureFx();
+      SFX.play('pop');
+    },
+    spawnSparkles(x,y,n){
+      n=Math.round(n*this.lab.sparkles);
+      if(n<=0) return;
+      for(let i=0;i<n;i++){
+        this.particles.push({ x:x+rnd(-6,6), y:y+rnd(-6,6),
+          vx:rnd(-45,45), vy:rnd(-80,-10),
+          life:rnd(0.35,0.7), t:0, hue:(Math.random()*360)|0 });
+      }
+      this.ensureFx();
+    },
+    ensureFx(){
+      if(this.fxRunning) return;
+      this.fxRunning=true; this._fxLast=0;
+      requestAnimationFrame(this._fxTick);
+    },
+    fxTick(){
+      if(!this.fxRunning) return;
+      if(this.screen!=='free'){ this.fxRunning=false; this.particles=[]; this.wobbles=[]; return; }
+      const c=this.fxX;
+      if(!c){ this.fxRunning=false; return; }
+      const now=performance.now();
+      const dt=this._fxLast? Math.min(0.05,(now-this._fxLast)/1000) : 0.016;
+      this._fxLast=now;
+      c.clearRect(0,0,CANVAS_W,CANVAS_H);
+      for(const p of this.particles){
+        p.t+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
+        const k=1-p.t/p.life;
+        if(k<=0) continue;
+        c.globalAlpha=Math.max(0,k);
+        c.strokeStyle='hsl('+p.hue+',95%,75%)';
+        c.lineWidth=2; c.lineCap='round';
+        const L=3+6*k;
+        c.beginPath();
+        c.moveTo(p.x-L,p.y); c.lineTo(p.x+L,p.y);
+        c.moveTo(p.x,p.y-L); c.lineTo(p.x,p.y+L);
+        c.stroke();
+      }
+      c.globalAlpha=1;
+      c.textAlign='center'; c.textBaseline='middle';
+      for(const w of this.wobbles){
+        const k=Math.min(1,(now-w.t0)/500);
+        if(k>=1) continue;
+        const rot=Math.sin(k*12)*(1-k)*0.4, sc=1.8-0.8*k;
+        c.save(); c.translate(w.x,w.y); c.rotate(rot);
+        c.font=Math.round(56*sc*this.lab.stampSize)+'px '+EMOJI_FONT;
+        c.fillText(w.emoji,0,0);
+        c.restore();
+      }
+      this.particles=this.particles.filter(p=>p.t<p.life);
+      this.wobbles=this.wobbles.filter(w=>(now-w.t0)<500);
+      if(this.particles.length || this.wobbles.length) requestAnimationFrame(this._fxTick);
+      else { this.fxRunning=false; this._fxLast=0; c.clearRect(0,0,CANVAS_W,CANVAS_H); }
+    },
+
+    /* ------- COLORING ------- */
+    initColor(){
+      const cv=this.$refs.colorCv;
+      if(!cv) return;
+      this.colX=this.setup2(cv);
+      this.renderColor(1);
+    },
+    resolveColor(col,idx){
+      if(col==='rainbow') return 'hsl('+((idx*47+this.colorPage*31)%360)+',80%,70%)';
+      return col;
+    },
+    renderColor(alphaK){
+      const c=this.colX; if(!c) return;
+      const pg=PAGES[this.colorPage], regions=pageRegions(pg);
+      const fills=this.fills[pg.id]||{};
+      const af=(this.animFill && this.animFill.page===pg.id)? this.animFill : null;
+      c.fillStyle='#fffdf3'; c.fillRect(0,0,CANVAS_W,CANVAS_H);
+      regions.forEach((r,i)=>{
+        const col=fills[i];
+        if(!col) return;
+        if(af && af.idx===i) c.globalAlpha=Math.max(0.06,Math.min(1,alphaK));
+        c.fillStyle=this.resolveColor(col,i);
+        c.fill(r.path);
+        c.globalAlpha=1;
+      });
+      c.strokeStyle='#3f3d56'; c.lineWidth=6; c.lineJoin='round'; c.lineCap='round';
+      regions.forEach(r=>c.stroke(r.path));
+      if(pg.lines) pg.lines(c);
+    },
+    fillDown(e){
+      if(this.screen!=='color') return;
+      const p=this.canvasPos(e,this.$refs.colorCv);
+      const pg=PAGES[this.colorPage], regions=pageRegions(pg), c=this.colX;
+      if(!c) return;
+      let hit=-1;
+      c.save();
+      c.setTransform(1,0,0,1,0,0);           // identity → logical coords match the Path2Ds
+      for(let i=regions.length-1;i>=0;i--){
+        if(c.isPointInPath(regions[i].path,p.x,p.y)){ hit=i; break; }
+      }
+      c.restore();
+      if(hit<0) return;
+      if(!this.fills[pg.id]) this.fills[pg.id]={};
+      this.fills[pg.id][hit]=this.color;
+      SFX.play('fill');
+      this.animFill={page:pg.id, idx:hit, t0:performance.now()};
+      if(!this.animRunning){ this.animRunning=true; requestAnimationFrame(this._animTick); }
+      this.saveState();
+    },
+    animTick(){
+      if(this.screen!=='color' || !this.animFill){ this.animFill=null; this.animRunning=false; return; }
+      const k=Math.min(1,(performance.now()-this.animFill.t0)/FILL_MS);
+      this.renderColor(k);
+      if(k<1) requestAnimationFrame(this._animTick);
+      else { this.animFill=null; this.animRunning=false; }
+    },
+    pickPage(i){
+      SFX.play('click');
+      this.colorPage=i;
+      this.pageResetArmed=false;
+      this.animFill=null;
+      this.renderColor(1);
+    },
+    pageResetTap(){
+      if(!this.pageResetArmed){
+        this.pageResetArmed=true;
+        clearTimeout(this._pt);
+        this._pt=setTimeout(()=>{ this.pageResetArmed=false; },4000);
+        SFX.play('click');
+      } else {
+        this.pageResetArmed=false;
+        const pg=PAGES[this.colorPage];
+        this.fills[pg.id]={};
+        this.animFill=null;
+        this.renderColor(1);
+        this.saveState();
+        SFX.play('oops');
+        this.pushToast('Fresh page ready!','🎨');
+      }
+    },
+
+    /* ------- GALLERY ------- */
+    snapshot(){
+      try{
+        const half=document.createElement('canvas');
+        half.width=CANVAS_W/2; half.height=CANVAS_H/2;
+        const hc=half.getContext('2d');
+        if(this.screen==='free' && this.$refs.drawCv){
+          hc.drawImage(this.$refs.bgCv,0,0,half.width,half.height);
+          hc.drawImage(this.$refs.drawCv,0,0,half.width,half.height);
+        } else if(this.$refs.colorCv){
+          hc.drawImage(this.$refs.colorCv,0,0,half.width,half.height);
+        } else return null;
+        return half.toDataURL('image/png');
+      }catch(e){ return null; }
+    },
+    saveToGallery(){
+      if(this.screen==='free' && this.strokes.length===0){
+        this.pushToast('Draw something first!','✏️'); SFX.play('oops'); return;
+      }
+      if(this.screen==='color' && !this.pageHasFills){
+        this.pushToast('Color something first!','🖍️'); SFX.play('oops'); return;
+      }
+      const png=this.snapshot();
+      if(!png){ this.pushToast('Hmm — the picture could not be saved','🤔'); return; }
+      if(this.gallery.length>=GALLERY_MAX){
+        this.gallery.shift();
+        this.pushToast('Made room for your newest doodle!','🕊️');
+      }
+      this.gallery.push({id:++this._gid, png:png, at:Date.now()});
+      this.profile.savedCount++;
+      this.saveState();
+      SFX.play('save');
+      this.pushToast('Saved to your Gallery!','💾');
+    },
+    openView(g){
+      this.viewId=g.id;
+      this.go('view');
+    },
+    downloadItem(){
+      const it=this.viewing;
+      if(!it) return;
+      try{
+        const a=document.createElement('a');
+        a.download='doodle-'+it.id+'.png';
+        a.href=it.png;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        SFX.play('save');
+        this.pushToast('Saved to your Downloads folder!','⬇️');
+      }catch(e){
+        this.pushToast('Hmm — the picture could not be saved','🤔');
+      }
+    },
+    deleteTap(){
+      const it=this.viewing;
+      if(!it) return;
+      if(!this.delArmed){
+        this.delArmed=true;
+        clearTimeout(this._dt);
+        this._dt=setTimeout(()=>{ this.delArmed=false; },4000);
+        SFX.play('click');
+      } else {
+        this.delArmed=false;
+        this.gallery=this.gallery.filter(g=>g.id!==it.id);
+        this.saveState();
+        SFX.play('oops');
+        this.pushToast('Bye-bye doodle!','👋');
+        this.go('gallery');
+      }
+    },
+
+    /* ------- settings ------- */
+    toggleSound(){
+      this.profile.sound=!this.profile.sound;
+      SFX.on=this.profile.sound;
+      this.saveState(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    armReset(){
+      this.resetArmed=true;
+      clearTimeout(this._ra);
+      this._ra=setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile={sound:true, savedCount:0};
+      this.gallery=[]; this.fills={};
+      this.lab=defaultLab();
+      this.labCode=''; this.labMsg=''; this.labMsgOk=false;
+      this.strokes=[]; this.cur=null;
+      this.colorPage=0; this.paper='cream'; this.tool='pen';
+      this.color='#f472b6'; this.sizeIdx=1; this.stamp='🐾';
+      SFX.on=true;
+      this.resetArmed=false;
+      this.go('menu');
+      this.pushToast('Fresh start! Happy doodling!','🌱');
+    }
+  },
+  mounted(){
+    SFX.on=this.profile.sound;
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    document.addEventListener('keydown',(e)=>{
+      if(this.screen==='lab' && e.key==='Escape') this.closeLab();
+      // Game-standard: stop Space/arrows from scrolling the page while playing
+      if((this.screen==='free'||this.screen==='color')
+         && [' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key)>=0
+         && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) e.preventDefault();
+    });
+    this.pushToast('Welcome, artists! 🎨','👋');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>

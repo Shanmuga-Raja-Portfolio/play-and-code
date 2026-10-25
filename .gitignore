@@ -1,0 +1,28 @@
+# OS junk
+Thumbs.db
+thumbs.db
+.DS_Store
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs and temp
+*.log
+*.tmp
+*.bak
+tmp/
+temp/
+.verify_tmp/
+
+# Python (tools/)
+__pycache__/
+*.pyc
+.venv/
+
+# Node (if tooling ever needs it)
+node_modules/

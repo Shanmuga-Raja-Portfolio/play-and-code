@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Report a security issue (private)
+    url: https://github.com/Shanmuga-Raja-Portfolio/play-and-code/security/advisories/new
+    about: Never open a public issue for security problems — use this private channel instead.
+  - name: 💬 Code of conduct concern (private)
+    url: https://github.com/Shanmuga-Raja-Portfolio/play-and-code/security/advisories/new
+    about: Report unacceptable behavior privately; mention "Code of conduct".
+  - name: 📖 Read before contributing
+    url: https://github.com/Shanmuga-Raja-Portfolio/play-and-code/blob/main/CONTRIBUTING.md
+    about: The hard rules every change must follow (CI enforces them).

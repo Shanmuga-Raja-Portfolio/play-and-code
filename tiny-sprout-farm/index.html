@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiny Sprout Farm 🌱</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+<!--
+  TINY SPROUT FARM — a cozy, kid-friendly gardening game.
+  Part of the free, MIT-licensed "Play & Code" collection (see ../LICENSE).
+  Parent notes:
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * THE ANTI-DARK-PATTERN FARM: plants NEVER wither, nothing bad ever happens, and crops grow ONLY
+    while the farm screen is open and the tab is visible. No "come back later", no notifications, no guilt.
+  * No ads, no links out, no accounts, no purchases, no loot boxes, no random prices — everything is deterministic.
+  * The 🛠️ Game Master Lab lets kids tune real game constants and type real (tiny) code.
+  * Tweak crops / plot prices / decorations via the CROPS, PLOT_PRICES and DECOR tables below.
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#a7e08a;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>🌱 Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#8fd3f4 0%,#c9ecff 45%,#eaf9d9 80%,#d3f2b4 100%);font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  :focus-visible{outline:3px solid #fbbf24;outline-offset:2px}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+
+  /* ---------- living sky ---------- */
+  .sky-layer{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+  .sun{position:absolute;top:2.5%;right:7%;font-size:4.2rem;line-height:1;animation:sunPulse 6s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(253,224,71,.95));opacity:.95}
+  .cloud{position:absolute;font-size:2.6rem;opacity:.9;animation:drift linear infinite}
+  .c1{top:7%;animation-duration:42s}
+  .c2{top:16%;font-size:2rem;animation-duration:58s;animation-delay:-22s}
+  .c3{top:3%;font-size:3.2rem;animation-duration:72s;animation-delay:-48s}
+  @keyframes drift{from{transform:translateX(-160px)}to{transform:translateX(calc(100vw + 160px))}}
+  @keyframes sunPulse{0%,100%{transform:scale(1) rotate(0deg)}50%{transform:scale(1.09) rotate(6deg)}}
+  /* small screens: keep the sky art clear of screen titles */
+  @media (max-width:640px){.sun{font-size:2.4rem;top:.8%;right:4%}.cloud{font-size:1.7rem}.c3{font-size:2.1rem}}
+
+  /* ---------- garden plots ---------- */
+  .plot{position:relative;min-height:clamp(56px,12.5vw,84px);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;user-select:none;background:linear-gradient(180deg,#a9764a,#84562e);border:3px solid #5c3d1e;box-shadow:inset 0 -5px 0 rgba(0,0,0,.16),0 3px 0 rgba(0,0,0,.14);transition:transform .1s,filter .15s}
+  .plot:hover{filter:brightness(1.08)}
+  .plot:active{transform:scale(.94)}
+  .plot-empty{background:linear-gradient(180deg,#9d7248,#775030)}
+  .plot-locked{background:linear-gradient(180deg,#94a3b8,#64748b);border-color:#475569}
+  .empty-plus{font-size:clamp(1.1rem,3.4vw,1.6rem);color:rgba(255,255,255,.85);animation:pulseSoft 2s infinite;display:inline-block}
+  .plot-word{font-size:10px;font-weight:900;color:rgba(255,255,255,.8);letter-spacing:.5px}
+  .lock-price{font-size:clamp(9px,2.4vw,12px);font-weight:900;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+  .plant{font-size:clamp(1.6rem,5.6vw,2.3rem);line-height:1.1;display:inline-block;animation:sway 2.6s ease-in-out infinite;transform-origin:50% 90%}
+  .plant.ripe{font-size:clamp(2rem,7vw,2.9rem);animation:ripeBounce 1.1s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(253,224,71,.8))}
+  @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  @keyframes ripeBounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.07)}}
+  .sparkle{position:absolute;font-size:.85rem;pointer-events:none;animation:pulseSoft .9s infinite}
+  .sp1{top:6%;right:10%}
+  .sp2{bottom:26%;left:8%;animation-delay:.45s}
+  .sp3{top:12%;left:14%;animation-delay:.2s;font-size:1rem}
+  .need-drop{position:absolute;top:5%;left:8%;font-size:1rem;animation:dropWiggle .8s ease-in-out infinite;pointer-events:none}
+  @keyframes dropWiggle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.25)}}
+  .water-btn{position:absolute;top:3%;right:4%;font-size:1.05rem;background:#fff;border-radius:9999px;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0;box-shadow:0 2px 0 rgba(0,0,0,.2);animation:pulseSoft 1.1s infinite;border:2px solid #7dd3fc;line-height:1.3}
+  .water-btn:active{transform:translateY(2px)}
+  .grow-timer{font-size:9px;font-weight:900;color:#eafcd8;text-shadow:0 1px 2px rgba(0,0,0,.55);letter-spacing:.3px}
+  .ripe-tap{font-size:9px;font-weight:900;color:#5b3a00;background:linear-gradient(180deg,#fde047,#facc15);border-radius:9999px;padding:0 6px;animation:pulseSoft .9s infinite}
+  .grow-bar{position:absolute;bottom:3px;left:9%;right:9%;height:6px;background:rgba(0,0,0,.38);border-radius:9999px;overflow:hidden}
+  .grow-fill{height:100%;border-radius:9999px;background:linear-gradient(90deg,#bef264,#4ade80);transition:width .25s linear}
+  .coin-pop{position:absolute;left:50%;top:34%;transform:translateX(-50%);font-size:clamp(.8rem,2.6vw,1.05rem);font-weight:900;color:#fde047;text-shadow:0 2px 0 rgba(0,0,0,.45);pointer-events:none;animation:floatUp 1.15s forwards;z-index:5;white-space:nowrap}
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,8px) scale(.7)}18%{opacity:1}100%{opacity:0;transform:translate(-50%,-36px) scale(1.2)}}
+
+  /* ---------- decorations strip + critters ---------- */
+  .decor-strip{display:flex;justify-content:center;align-items:flex-end;gap:clamp(.7rem,4vw,2.2rem);padding:.35rem .5rem .2rem;border-width:4px;border-style:solid;border-bottom:0;border-radius:1.2rem 1.2rem 0 0;background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0))}
+  .decor-slot{font-size:clamp(1.3rem,4.5vw,2rem);line-height:1.2;min-width:2ch;text-align:center}
+  .decor-emoji{display:inline-block;animation:bob 3s ease-in-out infinite}
+  .decor-none{opacity:.28;font-weight:900;color:#3f6212}
+  .flyer{position:absolute;font-size:1.25rem;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 2px rgba(0,0,0,.15))}
+  @keyframes flutA{0%{transform:translate(0,0) rotate(6deg)}25%{transform:translate(46px,-26px) rotate(-8deg)}50%{transform:translate(92px,6px) rotate(6deg)}75%{transform:translate(30px,30px) rotate(-8deg)}100%{transform:translate(0,0) rotate(6deg)}}
+  @keyframes flutB{0%{transform:translate(0,0) rotate(-6deg)}30%{transform:translate(-40px,20px) rotate(8deg)}60%{transform:translate(-78px,-14px) rotate(-6deg)}100%{transform:translate(0,0) rotate(-6deg)}}
+  @keyframes birdA{0%,100%{transform:translate(0,0)}50%{transform:translate(60px,-16px)}}
+  @keyframes birdB{0%,100%{transform:translate(0,0)}50%{transform:translate(-50px,12px)}}
+
+  /* ---------- shared cute ---------- */
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  @keyframes pulseSoft{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+  .pulse-tag{animation:pulseSoft 1s infinite;display:inline-block}
+  @keyframes starPop{to{transform:scale(1)}}
+  .star-btn{font-size:2.6rem;display:inline-block;transform:scale(0);line-height:1}
+  .star-on{animation:starPop .45s cubic-bezier(.34,1.56,.64,1) forwards}
+  .star-off{transform:scale(1);opacity:.22;filter:grayscale(1)}
+  @keyframes fall{to{transform:translateY(620px) rotate(360deg)}}
+  .confetti{position:absolute;top:-50px;animation:fall linear forwards;pointer-events:none}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  .scroll-x::-webkit-scrollbar{height:6px}
+  .scroll-x::-webkit-scrollbar-thumb{background:#f59e0b;border-radius:3px}
+  .lab-slider{width:100%;height:44px;accent-color:#f59e0b;cursor:pointer}
+
+  /* ---------- album stickers ---------- */
+  .album-card{position:relative;border-radius:1.2rem;padding:.8rem .4rem;text-align:center;border:4px solid transparent;transition:transform .12s}
+  .album-card:active{transform:scale(.95)}
+  .album-on{background:linear-gradient(180deg,#fffbeb,#fde68a);border-color:#f59e0b;box-shadow:0 4px 0 rgba(180,83,9,.35)}
+  .album-off{background:rgba(255,255,255,.6);border-color:#cbd5e1;opacity:.75}
+  .album-off .big-emoji{filter:grayscale(1);opacity:.5}
+  .sticker-badge{position:absolute;top:-10px;right:-8px;font-size:1.5rem;filter:drop-shadow(0 2px 2px rgba(0,0,0,.25));animation:starPop .5s cubic-bezier(.34,1.56,.64,1) both}
+</style>
+</head>
+<body>
+<div id="app" class="font-kid select-none">
+  <div class="min-h-screen" :style="appBg">
+  <!-- living sky behind everything -->
+  <div class="sky-layer" aria-hidden="true">
+    <span class="sun">{{profile.lab.sky==='night'?'🌙':'☀️'}}</span>
+    <span class="cloud c1">☁️</span>
+    <span class="cloud c2">☁️</span>
+    <span class="cloud c3">🌥️</span>
+  </div>
+
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" class="fixed left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none px-4" :class="screen==='menu'?'top-4':'bottom-6'">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center relative z-10">
+    <div class="text-6xl md:text-7xl">
+      <span class="bob">🌱</span><span class="bob" style="animation-delay:.25s">🥕</span><span class="bob" style="animation-delay:.5s">🌻</span><span class="bob" style="animation-delay:.75s">🍓</span><span class="bob" style="animation-delay:1s">🦋</span>
+    </div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold text-white drop-shadow-[0_3px_0_rgba(0,0,0,.25)]">Tiny Sprout Farm</h1>
+      <p class="font-bold mt-2 text-lg drop-shadow" :class="profile.lab.sky==='night'?'text-white':'text-slate-800'">A cozy garden that never, ever rushes you 🌈</p>
+      <div class="panel font-black text-amber-600 inline-flex items-center gap-1 mt-3">🪙 {{coins}}</div>
+    </div>
+    <div class="flex flex-col gap-3 w-80 max-w-full">
+      <button class="btn btn-green btn-xl" @click="go('farm')">🌱 My Farm</button>
+      <button class="btn btn-amber btn-xl" @click="openLab('menu')">🛠️ Game Master</button>
+      <div class="flex gap-3">
+        <button class="btn btn-amber flex-1 whitespace-nowrap !px-3" @click="goShop('menu')">🛒 Shop</button>
+        <button class="btn btn-pink flex-1 whitespace-nowrap !px-3" @click="go('album')">📖 Album <span class="bg-white/30 rounded-full px-2 text-sm shrink-0">{{stickerCount}}/6</span></button>
+      </div>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1 whitespace-nowrap !px-2" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1 whitespace-nowrap !px-2" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="text-xs font-bold mt-2 drop-shadow" :class="profile.lab.sky==='night'?'text-white/90':'text-slate-800/90'">🌻 plants never wilt · zero rush · just fun</div>
+    <div class="text-xs font-bold absolute bottom-3" :class="profile.lab.sky==='night'?'text-white/80':'text-slate-800/80'">🌱 Play &amp; Code · made with ❤️ for young coders · v1.1</div>
+  </div>
+
+  <!-- ============ FARM ============ -->
+  <div v-else-if="screen==='farm'" class="max-w-4xl mx-auto p-2 sm:p-4 flex flex-col gap-2 sm:gap-3 min-h-screen relative z-10">
+    <!-- top bar -->
+    <div class="flex items-center gap-2">
+      <button class="btn btn-white !px-3 !py-1.5" @click="go('menu')">🏡</button>
+      <button class="btn btn-white !px-3 !py-1.5" @click="togglePause" title="Pause">⏸️</button>
+      <div class="panel font-black text-amber-600 flex items-center gap-1 ml-auto">🪙 {{coins}}</div>
+      <button v-if="profile.goldenCan" class="btn btn-amber !px-3 !py-1.5" @click="useGoldenCan" title="Golden Watering Can — water everything!">✨🚿<span class="bg-white/40 rounded-full px-1.5 text-xs">{{needsWaterCount}}</span></button>
+      <button class="btn btn-amber !px-3 !py-1.5" @click="goShop('farm')">🛒</button>
+    </div>
+
+    <h1 class="text-center text-2xl sm:text-3xl font-extrabold text-white drop-shadow -mt-1">🌱 My Tiny Farm</h1>
+
+    <!-- field -->
+    <div class="relative rounded-3xl bg-gradient-to-b from-green-300 via-green-400 to-green-500 shadow-2xl ring-4 ring-white/60 overflow-hidden p-2 sm:p-3">
+      <!-- decoration strip (fence colors it) -->
+      <div class="decor-strip" :style="fenceStyle">
+        <div v-for="s in decorSlots" :key="s.id" class="decor-slot" :title="s.name">
+          <span v-if="s.owned" class="decor-emoji">{{s.emoji}}</span>
+          <span v-else class="decor-none">·</span>
+        </div>
+      </div>
+
+      <!-- ambient critters (computeds return [] until the decorations are owned) -->
+      <span v-for="(b,bi) in butterflyList" :key="'bf'+bi" class="flyer" :style="b">🦋</span>
+      <span v-for="(b,bi) in birdList" :key="'bd'+bi" class="flyer" :style="b">🐦</span>
+
+      <!-- plots 6 x 4 -->
+      <div class="relative z-10 grid grid-cols-6 gap-1.5 sm:gap-2.5 pt-1">
+        <div v-for="pv in plotViews" :key="pv.i" class="plot"
+             :class="{'plot-locked':pv.locked,'plot-empty':pv.empty}"
+             @click="tapPlot(pv.i)" tabindex="0" role="button"
+             :aria-label="pv.locked ? 'locked plot' : (pv.empty ? 'empty plot' : 'crop plot')">
+          <template v-if="pv.locked">
+            <span class="text-lg sm:text-2xl">🔒</span>
+            <span v-if="pv.price" class="lock-price">🪙{{pv.price}}</span>
+          </template>
+          <template v-else-if="pv.empty">
+            <span class="empty-plus">➕</span>
+            <span class="plot-word">plant!</span>
+          </template>
+          <template v-else>
+            <span v-for="p in popsBy(pv.i)" :key="p.id" class="coin-pop">{{p.txt}}</span>
+            <span class="plant" :class="pv.ripe ? 'ripe' : ''" :style="{animationDelay: pv.sway + 's'}">{{pv.emoji}}</span>
+            <span v-if="pv.ripe" class="sparkle sp1">✨</span>
+            <span v-if="pv.ripe" class="sparkle sp2">✨</span>
+            <span v-if="pv.ripe && pv.sparkly" class="sparkle sp3">💫</span>
+            <button v-if="pv.needsWater" class="water-btn" @click.stop="water(pv.i)" title="Water it!">🚿</button>
+            <span v-if="pv.needsWater" class="need-drop">💧</span>
+            <span v-else-if="!pv.ripe" class="grow-timer tabular-nums">{{pv.hint}}{{pv.secs}}s</span>
+            <span v-else class="ripe-tap">tap me!</span>
+            <div class="grow-bar"><div class="grow-fill" :style="{width: pv.pct + '%'}"></div></div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-[11px] sm:text-xs font-bold drop-shadow" :class="profile.lab.sky==='night'?'text-white':'text-slate-800'">Plants grow only while you're here 💛 they wait patiently for water — nothing ever wilts, no rush ever!</p>
+
+    <!-- seed picker -->
+    <div v-if="plantPick !== null" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-40" @click.self="closePicker">
+      <div class="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl text-center">
+        <div class="text-4xl">🌱</div>
+        <h2 class="text-2xl font-extrabold text-emerald-600 mb-1">Pick a seed</h2>
+        <div v-if="pickList.length === 0" class="flex flex-col gap-3 items-center py-2">
+          <p class="text-sm font-bold text-slate-500">No seeds in your pocket!</p>
+          <button class="btn btn-amber" @click="pickerToShop">🛒 Visit the Shop</button>
+        </div>
+        <div v-else class="flex flex-col gap-2 my-2">
+          <button v-for="s in pickList" :key="s.key" class="btn btn-white !justify-between w-full" @click="plantSeed(s.key)">
+            <span class="text-2xl">{{s.emoji}}</span>
+            <span class="font-black text-slate-700">{{s.name}}</span>
+            <span class="text-sm font-black text-emerald-600">×{{s.count}}</span>
+          </button>
+        </div>
+        <button class="btn btn-white !py-3 !px-6 text-sm" @click="closePicker">Cancel</button>
+      </div>
+    </div>
+
+    <!-- pause overlay -->
+    <div v-if="paused && plantPick === null && !celebrate" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-40">
+      <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+        <div class="text-5xl mb-1">⏸️</div>
+        <h2 class="text-2xl font-extrabold text-slate-700 mb-1">Paused</h2>
+        <p class="text-xs font-bold text-slate-500 mb-4">Your sprouts are taking a little nap. 🌱💤</p>
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-green" @click="resumeGame">▶ Keep Playing</button>
+          <button class="btn btn-amber" @click="openLab('pause')">🛠️ Game Master Lab</button>
+          <button class="btn btn-white" @click="toggleSound">{{profile.sound?'🔊 Sound: ON':'🔇 Sound: OFF'}}</button>
+          <button class="btn btn-purple" @click="go('menu')">🏡 Main Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- album complete celebration -->
+    <div v-if="celebrate" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-hidden">
+      <div class="confetti" v-for="(c,i) in confetti" :key="i" :style="{left:c.left+'%',animationDuration:c.dur+'s',animationDelay:c.delay+'s',fontSize:c.size+'px'}">{{c.e}}</div>
+      <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl relative z-10">
+        <div class="flex justify-center gap-2 mb-1">
+          <span v-for="n in 6" :key="n" class="star-btn star-on" :style="{animationDelay:(n*0.15)+'s'}">⭐</span>
+        </div>
+        <div class="text-5xl">📖✨</div>
+        <h2 class="text-3xl font-extrabold text-amber-500 mt-1">SEED ALBUM COMPLETE!</h2>
+        <p class="text-sm font-bold text-slate-500 my-2">You earned the <b>Golden Watering Can</b> ✨🚿<br>Tap it on your farm to water EVERY plant at once!</p>
+        <button class="btn btn-green btn-xl" @click="closeCelebrate">Yay! 🎉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SHOP ============ -->
+  <div v-else-if="screen==='shop'" class="max-w-3xl mx-auto p-3 sm:p-6 flex flex-col gap-3 sm:gap-4 min-h-screen relative z-10">
+    <div class="flex items-center gap-2 sm:gap-3">
+      <button class="btn btn-white" @click="go(shopFrom)">⬅ Back</button>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-white drop-shadow">🛒 Farm Shop</h1>
+      <div class="panel font-black text-amber-600 ml-auto">🪙 {{coins}}</div>
+    </div>
+    <p class="text-white font-bold text-xs sm:text-sm text-center -mt-1 drop-shadow">Every price is always the same — no surprises, ever!</p>
+
+    <div class="flex gap-2 justify-center">
+      <button class="btn" :class="shopTab==='seeds' ? 'btn-green' : 'btn-white'" @click="shopTab='seeds'; sfxClick()">🌱 Seeds</button>
+      <button class="btn" :class="shopTab==='decor' ? 'btn-green' : 'btn-white'" @click="shopTab='decor'; sfxClick()">🦋 Decorations</button>
+    </div>
+
+    <!-- SEEDS -->
+    <div v-if="shopTab==='seeds'" class="flex flex-col gap-2">
+      <div v-for="r in cropRows" :key="r.key" class="panel !p-3 flex items-center gap-3">
+        <div class="text-3xl w-11 text-center">{{r.emoji}}</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-black text-slate-700 text-sm">{{r.name}} <span class="text-xs bg-emerald-100 text-emerald-700 rounded-full px-2">🪙{{r.seed}}</span></div>
+          <div class="text-[11px] font-bold text-slate-500 leading-tight">💧{{r.water}} waterings · ⏳{{r.grow}}s · sells 🪙{{r.sell}} · you have {{r.owned}}</div>
+        </div>
+        <button class="btn btn-amber !px-3 !py-2 text-sm" :disabled="coins < r.seed" @click="buySeed(r.key,1)">+1</button>
+        <button class="btn btn-green !px-3 !py-2 text-sm" :disabled="coins < r.seed5" @click="buySeed(r.key,5)">+5 🪙{{r.seed5}}</button>
+      </div>
+      <div class="panel !p-4 flex items-center gap-3">
+        <div class="text-3xl">🪴</div>
+        <div class="flex-1">
+          <div class="font-black text-slate-700 text-sm">More garden plots</div>
+          <div class="text-[11px] font-bold text-slate-500 leading-tight">
+            <template v-if="currentPlotPrice">You own {{unlockedCount}}/24 · next plot costs 🪙{{currentPlotPrice}} — or tap any 🔒 plot on the farm!</template>
+            <template v-else>Wow — the whole garden is yours! 🌈</template>
+          </div>
+        </div>
+        <button v-if="currentPlotPrice" class="btn btn-amber !px-3 !py-2 text-sm" :disabled="coins < currentPlotPrice" @click="buyNextPlot">Buy 🪙{{currentPlotPrice}}</button>
+      </div>
+    </div>
+
+    <!-- DECORATIONS -->
+    <div v-else class="flex flex-col gap-2">
+      <div v-for="r in decorRows" :key="r.id" class="panel !p-3 flex items-center gap-3">
+        <div class="text-3xl w-11 text-center">{{r.emoji}}</div>
+        <div class="flex-1 min-w-0">
+          <div class="font-black text-slate-700 text-sm">{{r.name}}</div>
+          <div class="text-[11px] font-bold text-slate-500 leading-tight">{{r.desc}}</div>
+        </div>
+        <button v-if="!r.owned" class="btn btn-amber !px-3 !py-2 text-sm" :disabled="coins < r.price" @click="buyDecor(r.id)">🪙{{r.price}}</button>
+        <span v-else class="text-xs font-black text-emerald-600">In the garden ✓</span>
+      </div>
+      <div class="panel !p-3">
+        <div class="font-black text-slate-700 text-sm mb-2">🚧 Fence paint <span class="text-[11px] font-bold text-slate-400">(colors your garden fence)</span></div>
+        <div class="grid grid-cols-3 gap-2">
+          <div v-for="r in fenceRows" :key="r.id" class="rounded-2xl border-4 bg-white/70 p-2 text-center" :style="{borderColor: r.color}">
+            <div class="text-2xl">🚧</div>
+            <div class="text-[11px] font-black text-slate-700">{{r.name}}</div>
+            <button v-if="!r.owned" class="btn btn-amber !px-2 !py-1 text-[11px] mt-1" :disabled="coins < r.price" @click="buyFence(r.id)">🪙{{r.price}}</button>
+            <button v-else-if="r.equipped" class="btn btn-green !px-2 !py-1 text-[11px] mt-1" disabled>✓ In use</button>
+            <button v-else class="btn btn-white !px-2 !py-1 text-[11px] mt-1" @click="equipFence(r.id)">Use</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SEED ALBUM ============ -->
+  <div v-else-if="screen==='album'" class="max-w-3xl mx-auto p-3 sm:p-6 flex flex-col gap-3 sm:gap-4 min-h-screen relative z-10">
+    <div class="flex items-center gap-2 sm:gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-white drop-shadow">📖 Seed Album</h1>
+      <div class="panel font-black text-amber-600 ml-auto">⭐ {{stickerCount}}/6</div>
+    </div>
+    <div class="panel !p-3">
+      <div class="h-4 rounded-full bg-slate-300 overflow-hidden">
+        <div class="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-500 transition-all" :style="{width: albumPct + '%'}"></div>
+      </div>
+      <p class="text-center text-xs font-bold text-slate-500 mt-1">Harvest a crop once to earn its golden sticker!</p>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div v-for="c in albumCards" :key="c.key" class="album-card" :class="c.owned ? 'album-on' : 'album-off'">
+        <span v-if="c.owned" class="sticker-badge">⭐</span>
+        <div class="big-emoji text-5xl">{{c.emoji}}</div>
+        <div class="font-black text-slate-700 text-sm mt-1">{{c.name}}</div>
+        <div class="text-[11px] font-bold text-slate-500">sells 🪙{{c.sell}}</div>
+        <div class="text-[10px] font-black mt-1" :class="c.owned ? 'text-amber-600' : 'text-slate-400'">{{c.owned ? 'Sticker earned!' : 'harvest one to stick ⭐'}}</div>
+      </div>
+    </div>
+    <div v-if="profile.goldenCan" class="panel !p-4 text-center bg-gradient-to-r from-amber-100 to-yellow-100">
+      <div class="text-3xl">✨🚿</div>
+      <div class="font-black text-amber-600">Album complete — Golden Watering Can unlocked!</div>
+      <div class="text-[11px] font-bold text-slate-500">Tap ✨🚿 on the farm to water every thirsty plant at once.</div>
+    </div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen relative z-10">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">❓ How to Play</h1>
+    </div>
+    <div class="panel !p-5 flex flex-col gap-4 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="text-3xl">🌱</span><p>Tap an empty brown square and pick a seed. Grandpa Sprout left you two carrot seeds to start!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">💧</span><p>When you see a droplet 💧, tap the square (or the little 🚿) to water it. Un-watered plants simply wait — they <b>never</b> wilt!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🥕</span><p>When a plant sparkles and bounces, it's ripe — tap it to harvest! Coins go straight into your piggy bank. 🪙</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🛒</span><p>Buy new seeds, funny decorations and more garden plots in the Shop. Prices never change — no surprises!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">📖</span><p>Your first harvest of each crop earns a golden sticker. Fill the album to win the <b>Golden Watering Can</b> ✨🚿!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">💛</span><p>Plants only grow while you're looking at the farm, and they wait patiently when you leave. No rush, ever — happy farming!</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="max-w-md mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen relative z-10">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold text-white drop-shadow">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases all coins, seeds, plots, decorations and stickers. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center">
+          <span class="text-xs font-black text-rose-600">Really erase it all?</span>
+          <button class="btn btn-red !py-1.5 !px-3 text-xs" @click="doReset">Yes</button>
+          <button class="btn btn-white !py-1.5 !px-3 text-xs" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">
+        Harvests: {{profile.totalHarvests}} · Coins earned: {{profile.totalEarned}} · Plots: {{unlockedCount}}/24 · Stickers: {{stickerCount}}/6 · v1.1
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="max-w-3xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen relative z-10">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white drop-shadow">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="text-white font-bold text-sm text-center -mt-2 drop-shadow">You are the boss of this farm! Move a slider, then go play and feel the difference.</p>
+
+    <!-- sliders + sky picker -->
+    <div class="panel !p-4 flex flex-col gap-4">
+      <div v-for="d in LAB_DEFS" :key="d.key">
+        <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+          <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+          <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">×{{profile.lab[d.key]}}</span>
+        </div>
+        <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+               :value="profile.lab[d.key]" @input="setLab(d.key,$event)">
+        <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>×{{d.min}}</span><span class="text-slate-500">normal = ×{{d.def}}</span><span>×{{d.max}}</span></div>
+      </div>
+      <div>
+        <div class="font-black text-slate-700 text-sm mb-2">🌈 Sky theme <span class="font-bold text-slate-400 text-xs">· changes the whole sky, right now!</span></div>
+        <div class="flex gap-2">
+          <button v-for="s in LAB_SKIES" :key="s.key" class="btn flex-1 !py-2 text-sm"
+                  :class="profile.lab.sky===s.key?'btn-purple':'btn-white'" @click="pickSky(s.key)">{{s.icon}} {{s.name}}</button>
+        </div>
+      </div>
+      <button class="btn btn-red text-sm self-start" @click="resetLab">↩️ Reset to normal</button>
+    </div>
+
+    <!-- lesson cards -->
+    <div class="grid md:grid-cols-3 gap-3">
+      <div class="panel !p-4">
+        <div class="text-2xl">📦</div>
+        <div class="font-black text-slate-700 text-sm">Variables</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">A variable is a number with a name. 4 times every second the game runs a tiny loop that visits all 24 plots and grows each plant a little × <b>growSpeed</b>. Slide it and watch the farm speed up!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔢</div>
+        <div class="font-black text-slate-700 text-sm">Numbers</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">A carrot needs 2 drinks of water. <b>waterPower</b> is how many drinks one 🚿 tap gives — set it to 2 and a single tap fills a carrot right up!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">✖️</div>
+        <div class="font-black text-slate-700 text-sm">Multiplication</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">Every harvest pays the sell price × <b>coinBonus</b>. A 🥕 sells for 12 🪙, so <b>coinBonus</b> = 2 pays 24 🪙. Math is a superpower!</p>
+      </div>
+    </div>
+
+    <!-- mini code box -->
+    <div class="panel !p-4 flex flex-col gap-2">
+      <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+      <p class="text-xs font-bold text-slate-500">Try <b>growSpeed = 2</b>, or <b>coinBonus = 1 + 1</b>, or even <b>growSpeed = waterPower * 2</b> — then press Enter.</p>
+      <div class="flex gap-2">
+        <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+               class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+               placeholder="growSpeed = 2">
+        <button class="btn btn-green !py-2 text-sm" @click="runLabCode">Run ▶</button>
+      </div>
+      <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+      <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   TINY SPROUT FARM — a cozy, zero-pressure gardening game.
+   The anti-dark-pattern farm: nothing ever withers, timers tick
+   ONLY while the farm screen is open and the tab is visible.
+   ============================================================ */
+
+// --- parental knobs (tweak freely) -----------------------------------------
+const SAVE_KEY = 'tinySproutFarmSave1';
+const START_COINS = 20;
+const TOTAL_PLOTS = 24;        // 6 cols x 4 rows
+const START_PLOTS = 8;
+
+// --- Game Master Lab -------------------------------------------------------
+// Sliders bound to real gameplay constants. Values live in profile.lab and
+// multiply the base behavior (1 = normal).
+const LAB_DEFS = [
+  {key:'growSpeed', name:'Grow Speed',  icon:'🌱', min:0.5, max:3, step:0.1, def:1, hint:'how fast plants grow'},
+  {key:'waterPower',name:'Water Power', icon:'💧', min:1,   max:3, step:1,   def:1, hint:'how many drinks each watering gives'},
+  {key:'coinBonus', name:'Coin Bonus',  icon:'🪙', min:1,   max:3, step:0.5, def:1, hint:'extra coins at harvest time'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_SKIES = [
+  {key:'day',    icon:'🌤️', name:'Sunny'},
+  {key:'sunset', icon:'🌇', name:'Sunset'},
+  {key:'night',  icon:'🌌', name:'Starry'}
+];
+function defaultLab(){
+  const lab={ sky:'day' };
+  for(const d of LAB_DEFS) lab[d.key]=d.def;
+  return lab;
+}
+function sanitizeLab(v){
+  const lab=Object.assign(defaultLab(), (v && typeof v==='object') ? v : {});
+  for(const d of LAB_DEFS){
+    const n=+lab[d.key];
+    lab[d.key]=isFinite(n)?Math.max(d.min,Math.min(d.max,n)):d.def;
+  }
+  if(!LAB_SKIES.some(s=>s.key===lab.sky)) lab.sky='day';
+  return lab;
+}
+
+// Crops: deterministic prices/payouts. grow = total seconds, water = waterings needed.
+const CROPS = {
+  carrot:     {name:'Carrot',        emoji:'🥕', bud:'🥬', seed:5,  water:2, grow:35,  sell:12},
+  strawberry: {name:'Strawberry',    emoji:'🍓', bud:'🌸', seed:10, water:3, grow:50,  sell:26},
+  tomato:     {name:'Tomato',        emoji:'🍅', bud:'🌼', seed:14, water:3, grow:65,  sell:38},
+  sunflower:  {name:'Sunflower',     emoji:'🌻', bud:'🌼', seed:20, water:3, grow:80,  sell:52},
+  pumpkin:    {name:'Pumpkin',       emoji:'🎃', bud:'🥒', seed:30, water:4, grow:100, sell:80},
+  tulip:      {name:'Rainbow Tulip', emoji:'🌷', bud:'🍃', seed:50, water:4, grow:120, sell:130, sparkly:true}
+};
+const CROP_LIST = ['carrot','strawberry','tomato','sunflower','pumpkin','tulip'];
+
+// Escalating plot prices for unlock #1..#16 (after the first 8 free plots).
+const PLOT_PRICES = [50,80,120,180,250,330,420,520,620,730,850,980,1120,1270,1430,1600];
+
+// Decorations live on the fixed slots above the garden — purely cosmetic + ambient friends.
+const DECOR = [
+  {id:'gnome',     name:'Garden Gnome',   emoji:'🧝', price:60,  desc:'A funny little fellow guarding the veggies.'},
+  {id:'bench',     name:'Cozy Bench',     emoji:'🪑', price:90,  desc:'The perfect spot for a snack break.'},
+  {id:'birdbath',  name:'Bird Bath',      emoji:'⛲', price:120, desc:'Splashy friends come to visit! 🐦'},
+  {id:'butterfly', name:'Butterfly Bush', emoji:'🌺', price:150, desc:'Sweet flowers that call in butterflies! 🦋'}
+];
+const FENCES = [
+  {id:'fenceRed',    name:'Red Fence',    color:'#f87171', price:45},
+  {id:'fenceBlue',   name:'Blue Fence',   color:'#60a5fa', price:45},
+  {id:'fenceYellow', name:'Yellow Fence', color:'#fbbf24', price:45}
+];
+
+// Fixed ambient critter paths (cosmetic only, deterministic).
+const BUTTERFLIES = [
+  {top:'6%',  left:'12%', animationName:'flutA', animationDuration:'9s',  animationDelay:'0s'},
+  {top:'42%', left:'68%', animationName:'flutB', animationDuration:'11s', animationDelay:'-4s'},
+  {top:'78%', left:'34%', animationName:'flutA', animationDuration:'13s', animationDelay:'-8s'}
+];
+const BIRDS = [
+  {top:'4%',  left:'55%', animationName:'birdA', animationDuration:'7s', animationDelay:'0s'},
+  {top:'88%', left:'18%', animationName:'birdB', animationDuration:'9s', animationDelay:'-3s'}
+];
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click':   this.tone(500,650,0.06,'sine',0.07); break;
+      case 'plant':   this.tone(340,190,0.12,'sine',0.1); break;                    // soft thud
+      case 'water':   this.tone(820,300,0.18,'sine',0.09); break;                   // plop!
+      case 'harvest': this.tone(660,660,0.09,'triangle',0.12); this.tone(990,990,0.14,'triangle',0.11,0.09); break; // pling!
+      case 'ripe':    this.tone(1046,1318,0.16,'sine',0.07); break;                 // gentle bell
+      case 'buy':     this.tone(700,1050,0.1,'triangle',0.12); this.tone(1050,1400,0.1,'triangle',0.1,0.09); break;
+      case 'sticker': [660,880,1174].forEach((f,i)=>this.tone(f,f,0.12,'triangle',0.11,i*0.1)); break;
+      case 'golden':  this.tone(500,1500,0.35,'sine',0.1); [880,1108,1318].forEach((f,i)=>this.tone(f,f,0.1,'triangle',0.09,0.12+i*0.08)); break;
+      case 'deny':    this.tone(300,210,0.16,'sine',0.07); break;                   // gentle "hm"
+      case 'victory': [523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.16,'triangle',0.13,i*0.13)); break;
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============================ PROFILE / SAVE ============================ */
+function defaultProfile(){
+  const plots=[], unlocked=[];
+  for(let i=0;i<TOTAL_PLOTS;i++){ plots.push(null); unlocked.push(i<START_PLOTS); }
+  return {
+    coins: START_COINS,
+    seeds: {carrot:2},                 // Grandpa Sprout's welcome gift
+    plots,                             // null | {c:key, p:seconds grown, w:waterings done}
+    unlocked,
+    decor: {},                         // {gnome:true,...}
+    fence: '',                         // equipped fence id ('' = wooden)
+    album: {},                         // {carrot:true,...} stickers
+    goldenCan: false,
+    sound: true,
+    totalHarvests: 0,
+    totalEarned: 0,
+    lab: defaultLab()                  // Game Master Lab values
+  };
+}
+function sanitizePlot(v){
+  if(!v || typeof v!=='object' || !CROPS[v.c]) return null;
+  const def=CROPS[v.c];
+  return { c:v.c, p:Math.max(0,Math.min(def.grow,+v.p||0)), w:Math.max(0,Math.min(def.water,+v.w||0)) };
+}
+function loadProfile(){
+  const d=defaultProfile();
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p=JSON.parse(raw);
+      const prof=Object.assign(d,p);
+      if(Array.isArray(p.plots)){
+        prof.plots=d.plots.map((_,i)=>sanitizePlot(p.plots[i]));
+      }
+      if(Array.isArray(p.unlocked)){
+        prof.unlocked=d.unlocked.map((v,i)=>!!(p.unlocked && p.unlocked[i]));
+      }
+      const seeds={};
+      CROP_LIST.forEach(k=>{ const n=+(p.seeds && p.seeds[k])||0; if(n>0) seeds[k]=Math.floor(n); });
+      prof.seeds=seeds;
+      prof.decor={};
+      DECOR.forEach(x=>{ if(p.decor && p.decor[x.id]) prof.decor[x.id]=true; });
+      if(!FENCES.some(f=>f.id===prof.fence)) prof.fence='';
+      prof.album={};
+      CROP_LIST.forEach(k=>{ if(p.album && p.album[k]) prof.album[k]=true; });
+      prof.goldenCan=!!p.goldenCan;
+      prof.sound=p.sound!==false;
+      prof.coins=Math.max(0,Math.floor(+p.coins||0));
+      prof.totalHarvests=Math.max(0,Math.floor(+p.totalHarvests||0));
+      prof.totalEarned=Math.max(0,Math.floor(+p.totalEarned||0));
+      prof.lab=sanitizeLab(p.lab);   // merge old saves safely over Lab defaults
+      return prof;
+    }
+  }catch(e){}
+  return d;
+}
+
+/* ============================ VUE APP ============================ */
+const app = Vue.createApp({
+  data(){
+    return {
+      screen:'menu',
+      shopFrom:'menu',
+      shopTab:'seeds',
+      profile: loadProfile(),
+      paused:false,
+      plantPick:null,        // plot index choosing a seed for
+      celebrate:false,
+      resetArmed:false,
+      toasts:[], toastSeq:0,
+      pops:[], popSeq:0,
+      confetti:[],
+      ripePing:{},           // in-memory "already dinged" flags (not saved)
+      lastTick:0,
+      labCode:'', labMsg:'', labMsgOk:false, labReturn:'menu',
+      BUTTERFLIES, BIRDS, CROP_LIST, LAB_DEFS, LAB_SKIES
+    };
+  },
+  computed:{
+    coins(){ return this.profile.coins; },
+    unlockedCount(){ return this.profile.unlocked.filter(Boolean).length; },
+    currentPlotPrice(){
+      const idx=this.unlockedCount-START_PLOTS;
+      return (idx>=0 && idx<PLOT_PRICES.length) ? PLOT_PRICES[idx] : null;
+    },
+    stickerCount(){ return CROP_LIST.filter(k=>this.profile.album[k]).length; },
+    albumPct(){ return Math.round(this.stickerCount/CROP_LIST.length*100); },
+    needsWaterCount(){
+      return this.plotViews.filter(pv=>pv.needsWater).length;
+    },
+    pickList(){
+      return CROP_LIST
+        .map(k=>({key:k, name:CROPS[k].name, emoji:CROPS[k].emoji, count:this.profile.seeds[k]||0}))
+        .filter(s=>s.count>0);
+    },
+    plotViews(){
+      return this.profile.plots.map((pl,i)=>{
+        if(!this.profile.unlocked[i]){
+          const price=this.currentPlotPrice;
+          return {i, locked:true, empty:false, price, canBuy:price!==null && this.coins>=price};
+        }
+        if(!pl) return {i, locked:false, empty:true, price:null};
+        const def=CROPS[pl.c];
+        const segLen=def.grow/(def.water+1);
+        const crossed=Math.min(def.water, Math.floor(pl.p/segLen+1e-6));
+        const ripe=pl.p>=def.grow-1e-6;
+        const needsWater=!ripe && crossed>pl.w;
+        const stage=ripe?3:Math.min(2, Math.floor(pl.p/def.grow*3+1e-6));
+        const emojis=['🌱','🌿',def.bud,def.emoji];
+        let hint='', secs=0;
+        if(!ripe && !needsWater){
+          const target=(pl.w<def.water)?segLen*(pl.w+1):def.grow;
+          const spd=Math.max(0.01, this.profile.lab.growSpeed||1);
+          secs=Math.max(0,Math.ceil((target-pl.p)/spd));
+          hint=(pl.w<def.water)?'💧':'⏳';
+        }
+        return {
+          i, locked:false, empty:false, price:null,
+          def, ripe, needsWater, stage, sparkly:!!def.sparkly,
+          emoji:emojis[stage], hint, secs,
+          pct:Math.min(100, pl.p/def.grow*100),
+          sway:((i*137)%100)/100*1.7
+        };
+      });
+    },
+    decorSlots(){
+      return DECOR.map(d=>({id:d.id, name:d.name, emoji:d.emoji, owned:!!this.profile.decor[d.id]}));
+    },
+    fenceStyle(){
+      const f=FENCES.find(x=>x.id===this.profile.fence);
+      return {borderColor: f ? f.color : '#a16207'};
+    },
+    butterflyList(){ return this.profile.decor.butterfly ? BUTTERFLIES : []; },
+    birdList(){ return this.profile.decor.birdbath ? BIRDS : []; },
+    cropRows(){
+      return CROP_LIST.map(k=>{
+        const c=CROPS[k];
+        return {key:k, name:c.name, emoji:c.emoji, seed:c.seed, seed5:c.seed*5,
+                water:c.water, grow:c.grow, sell:c.sell, owned:this.profile.seeds[k]||0};
+      });
+    },
+    decorRows(){
+      return DECOR.map(d=>({id:d.id, name:d.name, emoji:d.emoji, desc:d.desc,
+                            price:d.price, owned:!!this.profile.decor[d.id]}));
+    },
+    fenceRows(){
+      return FENCES.map(f=>({id:f.id, name:f.name, color:f.color, price:f.price,
+                             owned:!!(this.profile.decor[f.id]), equipped:this.profile.fence===f.id}));
+    },
+    albumCards(){
+      return CROP_LIST.map(k=>({key:k, name:CROPS[k].name, emoji:CROPS[k].emoji,
+                                sell:CROPS[k].sell, owned:!!this.profile.album[k]}));
+    },
+    appBg(){
+      const s=this.profile.lab.sky;
+      if(s==='sunset') return {background:'linear-gradient(180deg,#fda4af 0%,#fdba74 45%,#fde68a 80%,#fef3c7 100%)'};
+      if(s==='night')  return {background:'linear-gradient(180deg,#1e1b4b 0%,#3730a3 50%,#4c1d95 80%,#365314 100%)'};
+      return {};
+    },
+    labReadout(){
+      const l=this.profile.lab;
+      return 'now → growSpeed ×'+l.growSpeed+' · waterPower ×'+l.waterPower+' · coinBonus ×'+l.coinBonus+' · sky '+l.sky;
+    }
+  },
+  methods:{
+    /* ------- navigation ------- */
+    go(screen){
+      SFX.play('click');
+      this.toasts=[];   // no stale toasts riding along to the next screen
+      if(this.screen==='farm' && screen!=='farm') this.save();
+      if(screen==='farm'){ this.paused=false; this.lastTick=performance.now(); }
+      this.screen=screen;
+    },
+    goShop(from){ SFX.play('click'); this.toasts=[]; this.shopFrom=from; this.shopTab='seeds'; this.screen='shop'; },
+    sfxClick(){ SFX.play('click'); },
+    save(){
+      try{ localStorage.setItem(SAVE_KEY,JSON.stringify(this.profile)); }catch(e){}
+      this._lastSaveAt=performance.now();
+    },
+
+    /* ------- Game Master Lab ------- */
+    openLab(from){
+      SFX.play('click');
+      this.toasts=[];
+      this.labReturn = (from==='pause') ? 'farm' : 'menu';
+      if(this.labReturn==='farm'){
+        this.paused=true; this.save(); // growth clock idles while the Lab is open (screen!=='farm')
+      }
+      this.labMsg=''; this.screen='lab';
+    },
+    closeLab(){
+      SFX.play('click');
+      this.toasts=[];
+      if(this.labReturn==='farm'){
+        this.screen='farm'; // still paused — the pause overlay welcomes you back
+        this.lastTick=performance.now();
+      } else {
+        this.labReturn='menu';
+        this.screen='menu';
+      }
+    },
+    setLab(key,ev){
+      const d=LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v=parseFloat(ev.target.value); if(!isFinite(v)) v=d.def;
+      v=Math.max(d.min,Math.min(d.max,v));
+      this.profile.lab[key]=Math.round(v*100)/100;
+      this.save();
+    },
+    pickSky(key){ this.profile.lab.sky=key; this.save(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.profile.lab, defaultLab()); // keep object identity
+      this.save(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even for sunflowers!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-trick. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.profile.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like growSpeed = 2'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: growSpeed = 2'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off to infinity! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const clamped=Math.max(def.min,Math.min(def.max,val));
+          let v=this.fmtNum(Math.round(clamped/def.step)*def.step); // snap to the slider's step
+          v=Math.max(def.min,Math.min(def.max,v));
+          this.profile.lab[name]=v;
+          this.save(); SFX.play('buy');
+          if(v!==this.fmtNum(val)){
+            const rule = clamped!==val
+              ? 'allowed: '+def.min+' to '+def.max+(def.step===1?', whole numbers only':'')
+              : (def.step===1 ? 'it counts whole numbers only' : 'it moves in steps of '+def.step);
+            this.labMsg='✨ '+name+' wanted to be '+this.fmtNum(val)+', but I set it to '+v+' ('+rule+').';
+          } else {
+            this.labMsg='✨ Done! '+name+' = '+v+'. Go play and feel it!';
+          }
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like growSpeed = 1.5';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ------- growth clock (ticks ONLY on farm screen, unpaused, tab visible) ------- */
+    tick(){
+      const now=performance.now();
+      const dt=Math.min(1, Math.max(0,(now-this.lastTick)/1000));
+      this.lastTick=now;
+      if(this.screen!=='farm' || this.paused || document.hidden) return;
+      let grew=false, ripened=false;
+      for(let i=0;i<this.profile.plots.length;i++){
+        const pl=this.profile.plots[i];
+        if(!pl) continue;
+        const def=CROPS[pl.c];
+        if(!def) continue;
+        if(pl.p>=def.grow-1e-6){
+          if(!this.ripePing[i]){ this.ripePing[i]=true; ripened=true; }
+          continue;
+        }
+        const segLen=def.grow/(def.water+1);
+        const crossed=Math.min(def.water, Math.floor(pl.p/segLen+1e-6));
+        if(crossed>pl.w) continue;              // waiting patiently for water — growth paused
+        let np=pl.p+dt*(this.profile.lab.growSpeed||1);
+        if(pl.w<def.water){ const th=segLen*(pl.w+1); if(np>th) np=th; }
+        if(np>def.grow) np=def.grow;
+        pl.p=np; grew=true;
+        if(pl.p>=def.grow-1e-6 && !this.ripePing[i]){ this.ripePing[i]=true; ripened=true; }
+      }
+      if(ripened) SFX.play('ripe');
+      if(grew && now-(this._lastSaveAt||0)>4000) this.save();
+    },
+
+    /* ------- plot interactions ------- */
+    tapPlot(i){
+      const pv=this.plotViews[i];
+      if(!pv) return;
+      if(pv.locked){ this.buyPlot(i); return; }
+      if(pv.empty){ SFX.play('click'); this.plantPick=i; return; }
+      if(pv.ripe){ this.harvest(i); return; }
+      if(pv.needsWater){ this.water(i); return; }
+      SFX.play('click');
+      this.pushToast(pv.emoji+' '+pv.def.name+': '+(pv.secs>0?pv.secs+'s to go!':'almost ready!'),'⏳');
+    },
+    buyPlot(i){
+      const price=this.currentPlotPrice;
+      if(price===null) return;
+      if(this.coins<price){
+        SFX.play('deny');
+        this.pushToast('Need '+(price-this.coins)+' more coins — harvest some crops!','🪙');
+        return;
+      }
+      this.profile.coins-=price;
+      this.profile.unlocked[i]=true;
+      this.profile.plots[i]=null;
+      SFX.play('buy'); this.save();
+      this.pushToast('New garden plot! Plant something!','🌻');
+    },
+    buyNextPlot(){
+      const idx=this.profile.unlocked.findIndex(u=>!u);
+      if(idx===-1) return;
+      this.buyPlot(idx);
+    },
+    closePicker(){ this.plantPick=null; SFX.play('click'); },
+    pickerToShop(){ SFX.play('click'); this.plantPick=null; this.goShop('farm'); },
+    plantSeed(key){
+      if(this.plantPick===null) return;
+      const have=this.profile.seeds[key]||0;
+      if(have<1){ SFX.play('deny'); return; }
+      const i=this.plantPick;
+      this.profile.seeds[key]=have-1;
+      this.profile.plots[i]={c:key,p:0,w:0};
+      delete this.ripePing[i];
+      SFX.play('plant'); this.save();
+      this.spawnPop(i,'🌱');
+      this.plantPick=null;
+    },
+    water(i){
+      const pv=this.plotViews[i];
+      const pl=this.profile.plots[i];
+      if(!pv || !pv.needsWater || !pl) return;
+      const def=CROPS[pl.c];
+      pl.w=Math.min(def.water, pl.w+(this.profile.lab.waterPower||1));
+      SFX.play('water'); this.save();
+      this.spawnPop(i,'💧');
+    },
+    harvest(i){
+      const pv=this.plotViews[i];
+      const pl=this.profile.plots[i];
+      if(!pv || !pv.ripe || !pl) return;
+      const def=CROPS[pl.c];
+      const payout=Math.round(def.sell*(this.profile.lab.coinBonus||1));
+      this.profile.coins+=payout;
+      this.profile.totalHarvests++;
+      this.profile.totalEarned+=payout;
+      this.profile.plots[i]=null;
+      delete this.ripePing[i];
+      SFX.play('harvest');
+      this.spawnPop(i,'+'+payout+' 🪙');
+      if(!this.profile.album[pl.c]){
+        this.profile.album[pl.c]=true;
+        SFX.play('sticker');
+        this.pushToast('New sticker: '+def.emoji+' '+def.name+'!','⭐');
+        if(!this.profile.goldenCan && CROP_LIST.every(k=>this.profile.album[k])){
+          this.profile.goldenCan=true;
+          this.celebrate=true;
+          this.spawnConfetti();
+          SFX.play('victory');
+        }
+      }
+      this.save();
+    },
+    useGoldenCan(){
+      if(!this.profile.goldenCan) return;
+      const thirsty=this.plotViews.filter(pv=>pv.needsWater);
+      if(thirsty.length===0){
+        SFX.play('click');
+        this.pushToast('Every plant is happy already!','💧');
+        return;
+      }
+      thirsty.forEach(pv=>{
+        const pl=this.profile.plots[pv.i];
+        const def=CROPS[pl.c];
+        pl.w=Math.min(def.water, pl.w+(this.profile.lab.waterPower||1));
+        this.spawnPop(pv.i,'💧');
+      });
+      SFX.play('golden'); this.save();
+      this.pushToast('Watered '+thirsty.length+' plants with one sprinkle!','✨');
+    },
+
+    /* ------- shop ------- */
+    buySeed(key,n){
+      const def=CROPS[key];
+      const cost=def.seed*n;
+      if(this.coins<cost){ SFX.play('deny'); this.pushToast('Need '+(cost-this.coins)+' more coins!','🪙'); return; }
+      this.profile.coins-=cost;
+      this.profile.seeds[key]=(this.profile.seeds[key]||0)+n;
+      SFX.play('buy'); this.save();
+      this.pushToast(def.emoji+' '+def.name+' seeds ×'+n+'!','🌱');
+    },
+    buyDecor(id){
+      const d=DECOR.find(x=>x.id===id);
+      if(!d || this.profile.decor[id]) return;
+      if(this.coins<d.price){ SFX.play('deny'); this.pushToast('Need '+(d.price-this.coins)+' more coins!','🪙'); return; }
+      this.profile.coins-=d.price;
+      this.profile.decor[id]=true;
+      SFX.play('buy'); this.save();
+      this.pushToast(d.emoji+' '+d.name+' placed in the garden!','🎉');
+    },
+    buyFence(id){
+      const f=FENCES.find(x=>x.id===id);
+      if(!f || this.profile.decor[id]) return;
+      if(this.coins<f.price){ SFX.play('deny'); this.pushToast('Need '+(f.price-this.coins)+' more coins!','🪙'); return; }
+      this.profile.coins-=f.price;
+      this.profile.decor[id]=true;
+      this.profile.fence=id;
+      SFX.play('buy'); this.save();
+      this.pushToast(f.name+' painted — looks great!','🚧');
+    },
+    equipFence(id){
+      if(!this.profile.decor[id]) return;
+      this.profile.fence=id;
+      SFX.play('click'); this.save();
+    },
+
+    /* ------- pause / overlays ------- */
+    togglePause(){
+      if(this.screen!=='farm') return;
+      this.paused=!this.paused;
+      if(this.paused) this.save();
+      SFX.play('click');
+    },
+    resumeGame(){ this.paused=false; this.lastTick=performance.now(); SFX.play('click'); },
+    closeCelebrate(){ this.celebrate=false; SFX.play('click'); },
+
+    /* ------- settings ------- */
+    toggleSound(){
+      this.profile.sound=!this.profile.sound;
+      SFX.on=this.profile.sound;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    armReset(){
+      this.resetArmed=true;
+      clearTimeout(this._ra);
+      this._ra=setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile=defaultProfile();
+      this.resetArmed=false;
+      this.ripePing={};
+      this.pops=[];
+      this.paused=false;
+      this.plantPick=null;
+      this.celebrate=false;
+      SFX.on=true;
+      this.screen='menu';
+      this.pushToast('Fresh start! Grandpa Sprout left you 2 carrot seeds 🥕','🌱');
+    },
+
+    /* ------- juice ------- */
+    pushToast(msg,emoji){
+      const id=++this.toastSeq;
+      this.toasts.push({id,msg,emoji:emoji||'🌱'});
+      setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600);
+    },
+    spawnPop(i,txt){
+      const id=++this.popSeq;
+      this.pops.push({id,i,txt});
+      setTimeout(()=>{ this.pops=this.pops.filter(p=>p.id!==id); },1200);
+    },
+    popsBy(i){ return this.pops.filter(p=>p.i===i); },
+    spawnConfetti(){
+      const em=['⭐','🎉','🌸','🪙','🦋','✨'];
+      const out=[];
+      for(let i=0;i<28;i++){
+        out.push({ e:em[(Math.random()*em.length)|0],
+          left:Math.random()*96, dur:(2.2+Math.random()*1.6),
+          delay:Math.random()*0.7, size:16+Math.random()*18 });
+      }
+      this.confetti=out;
+    }
+  },
+  mounted(){
+    SFX.on=this.profile.sound;
+    this._lastSaveAt=0;
+    this.lastTick=performance.now();
+    setInterval(()=>this.tick(),250);
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    window.addEventListener('keydown',(e)=>{
+      if(this.screen==='lab' && e.key==='Escape'){ this.closeLab(); return; }
+      if(this.screen!=='farm') return;
+      if(e.key==='Escape'){
+        if(this.plantPick!==null) this.closePicker();
+        else if(this.celebrate) this.closeCelebrate();
+        else this.togglePause();
+      } else if(e.key==='p'||e.key==='P'){
+        if(this.plantPick===null && !this.celebrate) this.togglePause();
+      } else if(e.key===' '||e.key==='ArrowUp'||e.key==='ArrowDown'||e.key==='ArrowLeft'||e.key==='ArrowRight'){
+        e.preventDefault();   // the page never scrolls from play keys
+      }
+    });
+    // pause-on-hidden: no double-counting, no growth while the tab is away
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden){
+        this.save();
+        if(this.screen==='farm') this.paused=true;
+      } else {
+        this.lastTick=performance.now();
+      }
+    });
+    window.addEventListener('pagehide',()=>this.save());
+    this.pushToast('Welcome to your farm! 🌱','👋');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>

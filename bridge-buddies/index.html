@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bridge Buddies 🌉</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>">
+<!--
+  BRIDGE BUDDIES — a kid-friendly bridge-building puzzle game.
+  Part of the free, MIT-licensed "Play & Code" collection (see ../LICENSE).
+  Parent notes:
+  * 100% offline: Vue + Tailwind are bundled in ./lib — no internet needed, nothing is sent anywhere.
+  * No ads, no links out, no accounts, no purchases, no loot boxes, no timers.
+  * Buddies never get hurt: the buddy just follows the plank path (no physics, wobble is cosmetic).
+  * Fail = a friendly "Need more bridge!" and an instant retry. No punishment language.
+  * The 🛠️ Game Master Lab lets kids tune real game constants and type real (tiny) code.
+  * Tweak difficulty by editing REACH / LONG_REACH / LEVELS below.
+-->
+<!-- 100% offline: these two files ship inside the lib/ folder. No CDN, no internet, ever. -->
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/tailwind.js"></script>
+<script>
+  // Friendly message instead of a broken page if someone copies index.html without the lib folder.
+  if (!window.Vue || !window.tailwind) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var w = document.createElement('div');
+      w.style.cssText = 'position:fixed;inset:0;background:#8fd35d;color:#1e293b;display:flex;align-items:center;justify-content:center;text-align:center;font-family:sans-serif;padding:2rem;z-index:9999';
+      w.innerHTML = '<div style="max-width:420px"><h2>🌉 Game files incomplete</h2><p>Please copy the <b>whole game folder</b> — including the <b>lib</b> folder — and open <b>index.html</b> from there.</p></div>';
+      (document.body || document.documentElement).appendChild(w);
+    });
+  }
+</script>
+<script>
+  tailwind.config = {
+    theme: { extend: { fontFamily: { kid: ["'Comic Sans MS'","'Chalkboard SE'","'Marker Felt'","'Segoe UI'",'sans-serif'] } } }
+  };
+</script>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#7ec8f7 0%,#bfe9ff 50%,#dff3c0 100%);font-family:'Comic Sans MS','Chalkboard SE','Marker Felt','Segoe UI',sans-serif;overflow-x:hidden}
+  button{touch-action:manipulation}
+  .panel{background:rgba(255,255,255,.85);border-radius:.9rem;box-shadow:0 3px 0 rgba(0,0,0,.12);padding:.35rem .7rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;font-weight:800;font-family:inherit;border-radius:1.1rem;padding:.7rem 1.5rem;box-shadow:0 5px 0 rgba(0,0,0,.18);transition:transform .08s,box-shadow .08s,filter .15s;cursor:pointer;border:0;color:#fff;background:#64748b;font-size:1.05rem}
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+  .btn-green{background:linear-gradient(180deg,#4ade80,#22c55e)}
+  .btn-blue{background:linear-gradient(180deg,#60a5fa,#3b82f6)}
+  .btn-amber{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#4a2d00}
+  .btn-pink{background:linear-gradient(180deg,#f472b6,#ec4899)}
+  .btn-purple{background:linear-gradient(180deg,#c084fc,#a855f7)}
+  .btn-red{background:linear-gradient(180deg,#f87171,#ef4444)}
+  .btn-white{background:#fff;color:#334155;box-shadow:0 5px 0 rgba(0,0,0,.12)}
+  .btn-xl{font-size:1.35rem;padding:.9rem 2.2rem;border-radius:1.3rem}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .bob{animation:bob 2.2s ease-in-out infinite;display:inline-block}
+  @keyframes pulseSoft{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+  .pulse-tag{animation:pulseSoft 1s infinite;display:inline-block}
+  @keyframes starPop{to{transform:scale(1)}}
+  .star-btn{font-size:3rem;display:inline-block;transform:scale(0);line-height:1}
+  .star-on{animation:starPop .45s cubic-bezier(.34,1.56,.64,1) forwards}
+  .star-off{transform:scale(1);opacity:.22;filter:grayscale(1)}
+  @keyframes fall{to{transform:translateY(620px) rotate(360deg)}}
+  .confetti{position:absolute;top:-50px;animation:fall linear forwards;pointer-events:none}
+  .toast-enter-from{opacity:0;transform:translateY(-14px) scale(.9)}
+  .toast-enter-active,.toast-leave-active{transition:all .25s}
+  .toast-leave-to{opacity:0;transform:translateY(-8px)}
+  .tabular-nums{font-variant-numeric:tabular-nums}
+  .lvl-card{transition:transform .1s,filter .15s}
+  .lab-slider{width:100%;height:34px;accent-color:#f59e0b;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app" class="font-kid select-none">
+  <div class="min-h-screen" :style="appBg">
+  <!-- ============ TOASTS ============ -->
+  <transition-group name="toast" tag="div" :class="screen==='game' ? 'top-4' : 'top-20'" class="fixed left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none px-4">
+    <div v-for="t in toasts" :key="t.id" class="panel font-bold text-slate-700 text-sm md:text-base flex items-center gap-2 px-4 py-2">
+      <span class="text-xl">{{t.emoji}}</span><span>{{t.msg}}</span>
+    </div>
+  </transition-group>
+
+  <!-- ============ MAIN MENU ============ -->
+  <div v-if="screen==='menu'" class="min-h-screen flex flex-col items-center justify-center gap-5 p-6 text-center">
+    <div class="text-6xl md:text-7xl"><span class="bob">🦔</span><span class="bob" style="animation-delay:.2s">🌉</span><span class="bob" style="animation-delay:.4s">🦆</span><span class="bob" style="animation-delay:.6s">🌉</span><span class="bob" style="animation-delay:.8s">🐸</span></div>
+    <div>
+      <h1 class="text-5xl md:text-6xl font-extrabold" :class="titleCls">Bridge Buddies</h1>
+      <p class="font-bold mt-2 text-lg drop-shadow" :class="softText">Snap planks between bolts and walk your buddies home!</p>
+    </div>
+    <div class="flex flex-col gap-3 w-72">
+      <button class="btn btn-green btn-xl" @click="go('levels')">▶ Play!</button>
+      <button v-if="sandboxUnlocked" class="btn btn-amber btn-xl" @click="startLevel(12)">🏝️ Sandbox</button>
+      <button class="btn btn-purple btn-xl" @click="openLab('menu')">🛠️ Game Master</button>
+      <div class="flex gap-3">
+        <button class="btn btn-white flex-1" @click="go('howto')">❓ How to Play</button>
+        <button class="btn btn-white flex-1" @click="go('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+    <div class="text-xs font-bold mt-2" :class="softText">🌱 offline · no ads · just fun</div>
+    <div class="text-xs font-bold absolute bottom-3" :class="softText">🌉 Play &amp; Code · made with ❤️ for young coders · v1.1</div>
+  </div>
+
+  <!-- ============ LEVEL SELECT ============ -->
+  <div v-else-if="screen==='levels'" class="max-w-3xl mx-auto p-4 md:p-6 flex flex-col gap-5 min-h-screen">
+    <div class="flex items-center gap-3 flex-wrap">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold" :class="titleCls">🗺️ Choose a Bridge</h1>
+      <span class="panel font-black ml-auto">⭐ {{totalStars}} / 36</span>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <button v-for="c in levelCards" :key="c.idx" @click="startLevel(c.idx)" :disabled="c.locked"
+              class="lvl-card rounded-2xl p-3 text-center border-4 active:scale-95"
+              :class="c.locked ? 'bg-slate-200 border-slate-300 opacity-70 cursor-not-allowed'
+                : c.isNext ? 'bg-amber-100 border-amber-400 shadow-lg hover:-translate-y-0.5'
+                : 'bg-white border-emerald-300 shadow hover:-translate-y-0.5'">
+        <div class="text-3xl leading-none">{{c.locked ? '🔒' : c.emoji}}</div>
+        <div class="text-2xl font-black text-slate-700 leading-tight mt-1">{{c.idx+1}}</div>
+        <div class="text-xs font-bold text-slate-600 leading-tight h-7 flex items-center justify-center">{{c.locked ? 'finish level '+c.idx : c.name}}</div>
+        <div class="text-sm leading-none my-1">
+          <span v-for="n in 3" :key="n" :class="n <= c.stars ? '' : 'opacity-20 grayscale'">⭐</span>
+        </div>
+        <div v-if="c.isNext && !c.locked" class="text-[10px] font-black text-amber-600 pulse-tag">NEW!</div>
+      </button>
+    </div>
+    <button @click="startLevel(12)" :disabled="!sandboxUnlocked"
+            class="lvl-card rounded-2xl p-4 text-center border-4 active:scale-95"
+            :class="sandboxUnlocked ? 'bg-emerald-50 border-emerald-400 shadow-lg hover:-translate-y-0.5' : 'bg-slate-200 border-slate-300 opacity-70 cursor-not-allowed'">
+      <div class="text-3xl">{{sandboxUnlocked ? '🏝️' : '🔒'}}</div>
+      <div class="text-xl font-black text-slate-700">Sandbox Island</div>
+      <div class="text-xs font-bold text-slate-500">{{sandboxUnlocked ? 'Unlimited planks — build anything!' : 'Finish all 12 levels to unlock!'}}</div>
+    </button>
+  </div>
+
+  <!-- ============ GAME (build + test) ============ -->
+  <div v-else-if="screen==='game'" class="max-w-5xl mx-auto p-2 md:p-4 flex flex-col gap-2 min-h-screen justify-center">
+    <!-- top bar -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <button class="btn btn-white !px-3 !py-2.5 min-w-[44px]" @click="quitToLevels" title="Back to levels">⬅</button>
+      <button class="btn btn-white !px-3 !py-2.5 min-w-[44px]" @click="togglePause" title="Pause">⏸️</button>
+      <div class="panel font-black text-sm flex-1 min-w-0 truncate">{{isSandbox ? '🏝️ Sandbox Island' : '🌉 Level '+(levelIdx+1)+' · '+levelDef.name}} <span v-if="!isSandbox" class="font-bold text-slate-500">· 🎯 par {{levelDef.par}}</span></div>
+      <div class="panel font-black flex items-center gap-1"><span class="text-lg">🪵</span><span class="tabular-nums">{{hud.invShort}}</span></div>
+      <div v-if="hasLongs" class="panel font-black flex items-center gap-1 bg-amber-100"><span class="text-lg">🪵</span><span class="text-[9px] bg-amber-300 text-amber-800 rounded px-1">LONG</span><span class="tabular-nums">{{hud.invLong}}</span></div>
+    </div>
+
+    <!-- canyon canvas + overlays -->
+    <div class="relative rounded-2xl overflow-hidden shadow-2xl ring-4 ring-white/60">
+      <canvas ref="cv" width="1000" height="420" class="w-full block bg-sky-200" style="touch-action:none"></canvas>
+
+      <!-- pause overlay -->
+      <div v-if="paused && !result" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 text-center max-w-xs w-full shadow-2xl">
+          <div class="text-5xl mb-1">⏸️</div>
+          <h2 class="text-2xl font-extrabold text-slate-700 mb-4">Paused</h2>
+          <div class="flex flex-col gap-2">
+            <button class="btn btn-green" @click="resumeGame">▶ Keep Building</button>
+            <button class="btn btn-purple" @click="openLab('pause')">🛠️ Game Master Lab</button>
+            <button class="btn btn-amber" @click="restartLevel">🔁 Restart Level</button>
+            <button class="btn btn-white" @click="toggleSound">{{profile.sound?'🔊 Sound: ON':'🔇 Sound: OFF'}}</button>
+            <button class="btn btn-red" @click="quitToLevels">🗺️ Quit to Levels</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- win overlay -->
+      <div v-if="result==='win'" class="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
+        <div class="confetti" v-for="(c,i) in confetti" :key="i" :style="{left:c.left+'%',animationDuration:c.dur+'s',animationDelay:c.delay+'s',fontSize:c.size+'px'}">{{c.e}}</div>
+        <div class="bg-white rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl relative z-10">
+          <div class="text-6xl">{{levelIdx===11 ? '🏆' : '🎉'}}</div>
+          <h2 class="text-3xl font-extrabold text-emerald-600 mt-1">{{levelIdx===11 ? 'ALL LEVELS DONE!' : starMsg}}</h2>
+          <p v-if="levelIdx===11" class="text-sm font-bold text-slate-500">You are the Bridge Master! 🏝️ Sandbox is unlocked!</p>
+          <div class="flex justify-center gap-2 my-3">
+            <span v-for="n in 3" :key="n" class="star-btn" :class="n<=resultStars?'star-on':'star-off'" :style="n<=resultStars?{animationDelay:(n*0.18)+'s'}:{}">⭐</span>
+          </div>
+          <div class="text-sm font-black text-slate-600 mb-2">🪵 Planks used: {{usedPlanks}} · 🎯 par {{levelDef.par}}</div>
+          <div class="flex flex-col gap-2 mt-2">
+            <button v-if="levelIdx<11" class="btn btn-green" @click="nextLevel">Next Level ▶</button>
+            <button v-else class="btn btn-amber" @click="startLevel(12)">🏝️ Go to Sandbox!</button>
+            <div class="flex gap-2">
+              <button class="btn btn-amber flex-1" @click="restartLevel">🔁 Replay</button>
+              <button class="btn btn-white flex-1" @click="quitToLevels">🗺️ Levels</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- action bar -->
+    <div class="flex gap-2 flex-wrap justify-center items-center">
+      <button v-if="hud.phase==='build'" class="btn btn-green btn-xl" @click="onGo">▶ Go {{currentBuddy}}!</button>
+      <button v-else class="btn btn-amber" @click="onRecall">⏮ Bring buddy back</button>
+      <button v-if="hud.phase==='build' && !clearArmed" class="btn btn-white" @click="armClear">🧹 Clear all</button>
+      <div v-else-if="clearArmed" class="flex gap-2 items-center panel !py-1">
+        <span class="text-xs font-black text-rose-600">Take back ALL planks?</span>
+        <button class="btn btn-red !py-3.5 !px-3 text-xs" @click="doClear">Yes</button>
+        <button class="btn btn-white !py-3.5 !px-3 text-xs" @click="clearArmed=false">No</button>
+      </div>
+      <span v-if="!isSandbox" class="panel text-xs font-bold text-slate-600">⭐⭐⭐ = {{levelDef.par}} planks or fewer</span>
+      <span v-else class="panel text-xs font-bold text-slate-600">Unlimited planks — pure building fun!</span>
+    </div>
+    <div class="text-center text-[11px] font-bold drop-shadow" :class="softText">Tap two bolts to snap a plank · tap a plank to take it back · Space = Go · P = pause</div>
+  </div>
+
+  <!-- ============ HOW TO PLAY ============ -->
+  <div v-else-if="screen==='howto'" class="max-w-2xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold" :class="titleCls">❓ How to Play</h1>
+    </div>
+    <div class="panel !p-5 flex flex-col gap-4 text-sm md:text-base font-bold text-slate-600">
+      <div class="flex gap-3 items-start"><span class="text-3xl">🔩</span><p>Smiling bolts are stuck in the rocks. <b>Tap one bolt, then tap another bolt</b> nearby — a wooden plank snaps in between!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">📏</span><p>The dashed line shows how far your plank can reach. Too far? Pick closer bolts, or use a <b>LONG plank</b> (the one with golden bands)!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">↩️</span><p>Tap a plank to take it back — it returns to your plank box. Use 🧹 Clear all to start fresh.</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">▶️</span><p>Press <b>Go buddy!</b> and your friend walks across your bridge to the flag. If the path stops, they'll shrug and come back — just add more bridge!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">⭐</span><p>Use <b>par</b> planks or fewer for 3 stars. Fewer planks, more stars!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">🏝️</span><p>Finish all 12 levels to unlock the <b>Sandbox</b> — unlimited planks, endless bridges!</p></div>
+      <div class="flex gap-3 items-start"><span class="text-3xl">💡</span><p>Rock pillars are free walking! Two bolts on the same pillar top? Your buddy just strolls across it.</p></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div v-else-if="screen==='settings'" class="max-w-md mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="go('menu')">⬅ Back</button>
+      <h1 class="text-3xl font-extrabold" :class="titleCls">⚙️ Settings</h1>
+    </div>
+    <div class="flex flex-col gap-3">
+      <button class="btn btn-white !justify-between" @click="toggleSound"><span>{{profile.sound?'🔊 Sound':'🔇 Sound'}}</span><span class="font-black" :class="profile.sound?'text-emerald-600':'text-slate-400'">{{profile.sound?'ON':'OFF'}}</span></button>
+      <div class="panel !p-4 mt-2">
+        <div class="font-black text-slate-700 text-sm mb-2">🌱 Start over</div>
+        <p class="text-xs font-bold text-slate-500 mb-3">Erases all stars and progress. There's no undo!</p>
+        <template v-if="!resetArmed">
+          <button class="btn btn-red text-sm" @click="armReset">🌱 Reset everything</button>
+        </template>
+        <div v-else class="flex gap-2 items-center">
+          <span class="text-xs font-black text-rose-600">Really erase it all?</span>
+          <button class="btn btn-red !py-3.5 !px-3 text-xs" @click="doReset">Yes</button>
+          <button class="btn btn-white !py-3.5 !px-3 text-xs" @click="resetArmed=false">No</button>
+        </div>
+      </div>
+      <div class="panel !p-3 text-center text-xs font-bold text-slate-500">Bridges built: {{profile.built}} · ⭐ {{totalStars}}/36 · {{VERSION}}</div>
+    </div>
+  </div>
+
+  <!-- ============ GAME MASTER LAB ============ -->
+  <div v-else-if="screen==='lab'" class="max-w-3xl mx-auto p-4 md:p-6 flex flex-col gap-4 min-h-screen">
+    <div class="flex items-center gap-3">
+      <button class="btn btn-white" @click="closeLab">⬅ Back</button>
+      <h1 class="text-2xl md:text-3xl font-extrabold" :class="titleCls">🛠️ Game Master Lab</h1>
+    </div>
+    <p class="font-bold text-sm text-center -mt-2 drop-shadow" :class="softText">You are the boss of this game! Move a slider, then go play and feel the difference.</p>
+
+    <!-- sliders + theme picker -->
+    <div class="panel !p-4 flex flex-col gap-4">
+      <div v-for="d in LAB_DEFS" :key="d.key">
+        <div class="flex items-center justify-between font-black text-slate-700 text-sm gap-2">
+          <span>{{d.icon}} {{d.name}} <span class="font-bold text-slate-400 text-xs">· {{d.hint}}</span></span>
+          <span class="bg-amber-100 text-amber-700 rounded-full px-2 text-xs whitespace-nowrap">×{{profile.lab[d.key]}}</span>
+        </div>
+        <input type="range" class="lab-slider" :min="d.min" :max="d.max" :step="d.step"
+               :value="profile.lab[d.key]" @input="setLab(d.key,$event)">
+        <div class="flex justify-between text-[10px] font-bold text-slate-400 -mt-1"><span>×{{d.min}}</span><span class="text-slate-500">normal = ×{{d.def}}</span><span>×{{d.max}}</span></div>
+      </div>
+      <div>
+        <div class="font-black text-slate-700 text-sm mb-2">🌈 Page theme <span class="font-bold text-slate-400 text-xs">· recolors the whole game, right now — even the river!</span></div>
+        <div class="flex gap-2">
+          <button v-for="s in LAB_THEMES" :key="s.key" class="btn flex-1 !py-2.5 text-xs md:text-sm !px-2 whitespace-nowrap"
+                  :class="profile.lab.theme===s.key?'btn-purple':'btn-white'" @click="pickTheme(s.key)">{{s.icon}} {{s.name}}</button>
+        </div>
+      </div>
+      <button class="btn btn-red text-sm self-start" @click="resetLab">↩️ Reset to normal</button>
+    </div>
+
+    <!-- lesson cards -->
+    <div class="grid md:grid-cols-3 gap-3">
+      <div class="panel !p-4">
+        <div class="text-2xl">📦</div>
+        <div class="font-black text-slate-700 text-sm">Variables</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">A variable is a named number. <b>plankReach</b> decides how long your planks can stretch — slide it and watch the dashed reach circle grow!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔢</div>
+        <div class="font-black text-slate-700 text-sm">Numbers &amp; math</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">Every plank droops by <b>bridgeSag</b>. Set it to 0 and bridges stay perfectly straight; set it to 2 and they dip like a noodle. Math is a superpower!</p>
+      </div>
+      <div class="panel !p-4">
+        <div class="text-2xl">🔁</div>
+        <div class="font-black text-slate-700 text-sm">Loops</div>
+        <p class="text-xs font-bold text-slate-500 mt-1">The game loop runs about 60 times a second. Each run moves your buddy a tiny step using <b>buddySpeed</b> — lots of tiny steps = smooth walking!</p>
+      </div>
+    </div>
+
+    <!-- mini code box -->
+    <div class="panel !p-4 flex flex-col gap-2">
+      <div class="font-black text-slate-700 text-sm">⌨️ Type real code!</div>
+      <p class="text-xs font-bold text-slate-500">Try <b>plankReach = 1.2</b>, or <b>bridgeSag = 0</b>, or even <b>hopPower = buddySpeed + 0.5</b> — then press Enter.</p>
+      <div class="flex gap-2">
+        <input v-model="labCode" @keydown.enter="runLabCode" spellcheck="false" autocomplete="off"
+               class="flex-1 min-w-0 rounded-xl px-3 py-2 font-mono text-sm bg-slate-800 text-emerald-300 outline-none border-2 border-slate-600 focus:border-emerald-400"
+               placeholder="plankReach = 1.2">
+        <button class="btn btn-green !py-2.5 text-sm" @click="runLabCode">Run ▶</button>
+      </div>
+      <div v-if="labMsg" class="text-xs font-black rounded-xl px-3 py-2" :class="labMsgOk?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-600'">{{labMsg}}</div>
+      <div class="text-[11px] font-mono font-bold text-slate-400">{{labReadout}}</div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   BRIDGE BUDDIES — game data, engine and app
+   (original characters & art — a cozy bridge-building puzzle)
+   ============================================================ */
+
+/*__DATA_START__*/
+// --- parental knobs ---------------------------------------------------
+const SAVE_KEY  = 'bridgeBuddiesSave1';
+const VERSION   = 'v1.1';
+const REACH     = 170;  // max span of a normal plank (px)
+const LONG_REACH= 240;  // max span of a long plank (px)
+
+// --- Game Master Lab -------------------------------------------------------
+// Sliders bound to REAL constants in the code below. Values live in
+// profile.lab and multiply the base numbers (1 = normal). They are applied
+// live in tryPlace()/usableReach() (plankReach), stepWalker() (buddySpeed,
+// hopPower) and makeSeg()/drawPlank() (bridgeSag).
+const LAB_DEFS = [
+  {key:'plankReach', name:'Plank Length',   icon:'🪵', min:0.5, max:1.5, step:0.05, def:1, hint:'how long your planks can stretch'},
+  {key:'buddySpeed', name:'Buddy Speed',    icon:'💨', min:0.5, max:2,   step:0.1,  def:1, hint:'how fast buddies walk your bridge'},
+  {key:'bridgeSag',  name:'Bridge Droop',   icon:'🌉', min:0,   max:2,   step:0.1,  def:1, hint:'how much planks dip in the middle'},
+  {key:'hopPower',   name:'Hop Power',      icon:'🐸', min:0.5, max:2,   step:0.1,  def:1, hint:'how bouncy the frog\u2019s hops are'}
+];
+const LAB_KEYS = LAB_DEFS.map(d=>d.key); // the only names the code box understands
+const LAB_THEMES = [
+  {key:'day',    icon:'🌤️', name:'Sunny Day'},
+  {key:'sunset', icon:'🌇', name:'Sunset'},
+  {key:'night',  icon:'🌙', name:'Starry Night'}
+];
+function defaultLab(){
+  const lab={ theme:'day' };
+  for(const d of LAB_DEFS) lab[d.key]=d.def;
+  return lab;
+}
+function labMult(lab,k){ const v=lab&&lab[k]; return (typeof v==='number'&&isFinite(v))?v:1; }
+
+// --- buddies (they walk your bridges; nobody ever gets hurt) -----------
+const BUDDIES = {
+  hedgehog:{ name:'Hattie', emoji:'🦔', speed:72, mode:'walk',   side:'front' },
+  duck:    { name:'Waddles',emoji:'🦆', speed:64, mode:'waddle', side:'left'  },
+  frog:    { name:'Hop',    emoji:'🐸', speed:50, mode:'hop',    side:'front' },
+  squirrel:{ name:'Skitter',emoji:'🐿️', speed:76, mode:'walk',   side:'front' }
+};
+
+// --- levels ------------------------------------------------------------
+// leftEdge/rightEdge: canyon walls. pillars: {x, top, w} rocks in the gap.
+// bolts: {x, y, s} where s = 'L'/'R' cliff surface or 'P0','P1'.. pillar top.
+// shorts/longs: plank inventory (-1 = infinite). par: planks for 3 stars.
+const LEVELS = [
+  { name:'Tiny Hop', buddy:'hedgehog', shorts:4, longs:0, par:2, leftEdge:330, rightEdge:630,
+    pillars:[{x:480,top:240,w:70}],
+    bolts:[{x:320,y:184,s:'L'},{x:230,y:184,s:'L'},{x:480,y:233,s:'P0'},{x:640,y:184,s:'R'},{x:730,y:184,s:'R'}] },
+  { name:'Duck Crossing', buddy:'duck', shorts:5, longs:0, par:3, leftEdge:310, rightEdge:690,
+    pillars:[{x:440,top:250,w:70},{x:560,top:250,w:70}],
+    bolts:[{x:300,y:184,s:'L'},{x:210,y:184,s:'L'},{x:440,y:243,s:'P0'},{x:560,y:243,s:'P1'},{x:700,y:184,s:'R'},{x:790,y:184,s:'R'}] },
+  { name:'Hoppy Falls', buddy:'frog', shorts:5, longs:0, par:3, leftEdge:290, rightEdge:720,
+    pillars:[{x:430,top:225,w:70},{x:580,top:265,w:70}],
+    bolts:[{x:280,y:184,s:'L'},{x:190,y:184,s:'L'},{x:430,y:218,s:'P0'},{x:580,y:258,s:'P1'},{x:730,y:184,s:'R'},{x:820,y:184,s:'R'}] },
+  { name:'Zig-Zag Rocks', buddy:'hedgehog', shorts:6, longs:0, par:3, leftEdge:280, rightEdge:720,
+    pillars:[{x:420,top:230,w:150},{x:600,top:280,w:70}],
+    bolts:[{x:270,y:184,s:'L'},{x:180,y:184,s:'L'},{x:355,y:223,s:'P0'},{x:485,y:223,s:'P0'},{x:600,y:273,s:'P1'},{x:730,y:184,s:'R'},{x:820,y:184,s:'R'}] },
+  { name:'Long Plank Pass', buddy:'duck', shorts:5, longs:1, par:3, leftEdge:270, rightEdge:730,
+    pillars:[{x:400,top:235,w:80},{x:610,top:235,w:80}],
+    bolts:[{x:260,y:184,s:'L'},{x:170,y:184,s:'L'},{x:400,y:228,s:'P0'},{x:610,y:228,s:'P1'},{x:740,y:184,s:'R'},{x:830,y:184,s:'R'}] },
+  { name:'Froggy Staircase', buddy:'frog', shorts:6, longs:1, par:3, leftEdge:270, rightEdge:740,
+    pillars:[{x:380,top:260,w:140},{x:560,top:210,w:70}],
+    bolts:[{x:250,y:184,s:'L'},{x:160,y:184,s:'L'},{x:330,y:253,s:'P0'},{x:430,y:253,s:'P0'},{x:560,y:203,s:'P1'},{x:750,y:184,s:'R'},{x:840,y:184,s:'R'}] },
+  { name:'Wide Waters', buddy:'hedgehog', shorts:6, longs:0, par:4, leftEdge:270, rightEdge:750,
+    pillars:[{x:370,top:230,w:90},{x:500,top:270,w:90},{x:630,top:230,w:90}],
+    bolts:[{x:240,y:184,s:'L'},{x:150,y:184,s:'L'},{x:370,y:223,s:'P0'},{x:500,y:263,s:'P1'},{x:630,y:223,s:'P2'},{x:760,y:184,s:'R'},{x:850,y:184,s:'R'}] },
+  { name:'Ducky Detour', buddy:'duck', shorts:6, longs:0, par:4, leftEdge:270, rightEdge:760,
+    pillars:[{x:360,top:220,w:120},{x:530,top:285,w:70},{x:640,top:220,w:120}],
+    bolts:[{x:230,y:184,s:'L'},{x:140,y:184,s:'L'},{x:315,y:213,s:'P0'},{x:405,y:213,s:'P0'},{x:530,y:278,s:'P1'},{x:600,y:213,s:'P2'},{x:680,y:213,s:'P2'},{x:770,y:184,s:'R'},{x:860,y:184,s:'R'}] },
+  { name:'High & Low', buddy:'frog', shorts:5, longs:1, par:4, leftEdge:270, rightEdge:770,
+    pillars:[{x:350,top:240,w:100},{x:480,top:240,w:100},{x:640,top:190,w:100}],
+    bolts:[{x:220,y:184,s:'L'},{x:130,y:184,s:'L'},{x:350,y:233,s:'P0'},{x:480,y:233,s:'P1'},{x:640,y:183,s:'P2'},{x:780,y:184,s:'R'},{x:870,y:184,s:'R'}] },
+  { name:'The Big Gap', buddy:'hedgehog', shorts:6, longs:1, par:4, leftEdge:270, rightEdge:780,
+    pillars:[{x:380,top:230,w:80},{x:560,top:230,w:80},{x:700,top:270,w:80}],
+    bolts:[{x:220,y:184,s:'L'},{x:130,y:184,s:'L'},{x:380,y:223,s:'P0'},{x:560,y:223,s:'P1'},{x:700,y:263,s:'P2'},{x:790,y:184,s:'R'},{x:880,y:184,s:'R'}] },
+  { name:'Wobbly Way', buddy:'duck', shorts:6, longs:1, par:4, leftEdge:270, rightEdge:790,
+    pillars:[{x:360,top:210,w:140},{x:570,top:290,w:170},{x:700,top:210,w:90}],
+    bolts:[{x:240,y:184,s:'L'},{x:150,y:184,s:'L'},{x:320,y:203,s:'P0'},{x:400,y:203,s:'P0'},{x:520,y:283,s:'P1'},{x:620,y:283,s:'P1'},{x:700,y:203,s:'P2'},{x:800,y:184,s:'R'},{x:890,y:184,s:'R'}] },
+  { name:'Grand Canyon', buddy:'frog', shorts:6, longs:2, par:3, leftEdge:270, rightEdge:790,
+    pillars:[{x:350,top:250,w:110},{x:520,top:200,w:80},{x:650,top:290,w:110}],
+    bolts:[{x:220,y:184,s:'L'},{x:130,y:184,s:'L'},{x:310,y:243,s:'P0'},{x:390,y:243,s:'P0'},{x:520,y:193,s:'P1'},{x:610,y:283,s:'P2'},{x:690,y:283,s:'P2'},{x:800,y:184,s:'R'},{x:890,y:184,s:'R'}] },
+  // Level 13 — SANDBOX: unlimited planks, no par, pure building fun.
+  { name:'Sandbox Island', buddy:'squirrel', shorts:-1, longs:-1, par:0, leftEdge:280, rightEdge:760,
+    pillars:[{x:400,top:240,w:120},{x:560,top:180,w:80},{x:680,top:260,w:140}],
+    bolts:[{x:270,y:184,s:'L'},{x:180,y:184,s:'L'},{x:350,y:233,s:'P0'},{x:450,y:233,s:'P0'},{x:560,y:173,s:'P1'},{x:620,y:253,s:'P2'},{x:740,y:253,s:'P2'},{x:770,y:184,s:'R'},{x:860,y:184,s:'R'}] }
+];
+/*__DATA_END__*/
+
+const EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+const KID_FONT   = '"Comic Sans MS","Chalkboard SE","Segoe UI",sans-serif';
+
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function rr(ctx,x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+/* ============ tiny WebAudio soundbox (no files, no network) ============ */
+class Sfx {
+  constructor(){ this.ctx=null; this.on=true; }
+  ensure(){
+    if(!this.ctx){ try{ this.ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume();
+  }
+  tone(f0,f1,dur,type,vol,delay){
+    if(!this.on) return;
+    this.ensure(); if(!this.ctx) return;
+    try{
+      const t0=this.ctx.currentTime+(delay||0);
+      const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+      o.type=type||'sine';
+      o.frequency.setValueAtTime(f0,t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(1,f1),t0+dur);
+      g.gain.setValueAtTime(vol||0.12,t0);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t0); o.stop(t0+dur+0.02);
+    }catch(e){}
+  }
+  play(name){
+    switch(name){
+      case 'click':  this.tone(500,650,0.06,'sine',0.07); break;
+      case 'place':  this.tone(190,120,0.09,'square',0.11); this.tone(560,260,0.05,'triangle',0.07,0.02); break; // wood klonk
+      case 'remove': this.tone(300,520,0.08,'triangle',0.09); break;
+      case 'deny':   this.tone(220,150,0.14,'sawtooth',0.06); break;
+      case 'creak':  this.tone(150,105,0.3,'sawtooth',0.035); this.tone(96,80,0.26,'triangle',0.04,0.04); break;
+      case 'hop':    this.tone(330,430,0.07,'sine',0.05); break;
+      case 'splash': this.tone(500,140,0.22,'sine',0.08); break;
+      case 'pop':    this.tone(740,980,0.05,'triangle',0.05); break;
+      case 'oops':   [330,262].forEach((f,i)=>this.tone(f,f*0.97,0.16,'sine',0.09,i*0.15)); break;
+      case 'victory':[523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.16,'triangle',0.13,i*0.13)); break;
+    }
+  }
+}
+const SFX = new Sfx();
+
+/* ============================ BRIDGE SCENE ============================ */
+// Renders the canyon, handles build input, and walks the buddy along the
+// plank graph. No physics engine: the buddy follows a path, wobble is
+// only a pretty wiggle, and a defensive lily-pad catch makes falls cute.
+class BridgeScene {
+  constructor(opts){
+    this.level   = opts.level;
+    this.levelIdx= opts.levelIdx;
+    this.sandbox = !!opts.sandbox;
+    this.sfx     = opts.sfx;
+    this.hud     = opts.hud;
+    this.onWin   = opts.onWin;
+    this.onFail  = opts.onFail;
+    this.ctx=null; this.cv=null;
+
+    this.w=1000; this.h=420;
+    this.groundY=190; this.waterY=340;
+    this.startX=60;  this.goalX=940;
+
+    this.bolts = this.level.bolts.map(b=>({x:b.x,y:b.y,s:b.s,seed:Math.random()*10}));
+    this.planks= [];
+    this.lab   = opts.lab || defaultLab(); // Lab slider values (live reference)
+    this.invShort = this.sandbox||this.level.shorts<0 ? Infinity : this.level.shorts;
+    this.invLong  = this.sandbox||this.level.longs<0  ? Infinity : this.level.longs;
+
+    this.phase='build';   // 'build' | 'test'
+    this.sel=-1; this.denyBolt=-1;
+    this.hover={x:0,y:0,active:false};
+    this.paused=false;
+
+    this.time=0; this._last=0; this.running=false;
+    this.fx=[]; this.floats=[]; this.fw=[];
+
+    // cozy scenery
+    this.clouds=[]; for(let i=0;i<4;i++) this.clouds.push({x:rnd(0,1000),y:rnd(24,110),s:rnd(.7,1.3),v:rnd(7,15)});
+    this.bird=null; this.birdTimer=rnd(4,9);
+    this.ripples=[]; for(let i=0;i<7;i++) this.ripples.push({x:rnd(0,1000),v:rnd(10,26),ph:rnd(0,7)});
+    const LE=this.level.leftEdge, RE=this.level.rightEdge;
+    this.pads=[{x:LE+(RE-LE)*.22,y:352,f:Math.random()<.5},{x:LE+(RE-LE)*.5,y:356,f:Math.random()<.5},{x:LE+(RE-LE)*.78,y:351,f:Math.random()<.5}];
+    this.flowers=[];
+    for(let i=0;i<5;i++) this.flowers.push({e:['🌼','🌷','🌻'][i%3],x:rnd(20,LE-40),y:187,s:14+(i%3)*3});
+    for(let i=0;i<5;i++) this.flowers.push({e:['🌼','🌷','🌸'][i%3],x:rnd(RE+40,980),y:187,s:14+(i%3)*3});
+
+    this.walker=null;
+    this._frame=this._frame.bind(this);
+    this._handlers=null;
+  }
+
+  attach(cv){
+    const dpr = Math.min(2, window.devicePixelRatio||1);
+    cv.width  = this.w*dpr;
+    cv.height = this.h*dpr;
+    this.cv=cv;
+    this.ctx = cv.getContext('2d');
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this._handlers={
+      down:(e)=>{ e.preventDefault(); const p=this._pos(e); this.onDown(p.x,p.y); },
+      move:(e)=>{ const p=this._pos(e); this.hover.x=p.x; this.hover.y=p.y; this.hover.active=true; },
+      leave:()=>{ this.hover.active=false; }
+    };
+    cv.addEventListener('pointerdown',this._handlers.down);
+    cv.addEventListener('pointermove',this._handlers.move);
+    cv.addEventListener('pointerleave',this._handlers.leave);
+  }
+  destroy(){
+    this.stop();
+    if(this.cv && this._handlers){
+      this.cv.removeEventListener('pointerdown',this._handlers.down);
+      this.cv.removeEventListener('pointermove',this._handlers.move);
+      this.cv.removeEventListener('pointerleave',this._handlers.leave);
+    }
+  }
+  _pos(e){
+    const r=this.cv.getBoundingClientRect();
+    return { x:(e.clientX-r.left)*this.w/r.width, y:(e.clientY-r.top)*this.h/r.height };
+  }
+  start(){ this.running=true; this._last=performance.now(); requestAnimationFrame(this._frame); }
+  stop(){ this.running=false; }
+  _frame(ts){
+    if(!this.running) return;
+    const dt=Math.min(0.05,Math.max(0,(ts-this._last)/1000)); this._last=ts;
+    if(!this.paused) this.update(dt);
+    this.render();
+    requestAnimationFrame(this._frame);
+  }
+
+  /* ---------------- build input ---------------- */
+  boltAt(x,y){
+    let best=-1,bd=22;
+    for(let i=0;i<this.bolts.length;i++){
+      const d=Math.hypot(this.bolts[i].x-x,this.bolts[i].y-y);
+      if(d<bd){bd=d;best=i;}
+    }
+    return best;
+  }
+  plankAt(x,y){
+    for(let i=0;i<this.planks.length;i++){
+      const p=this.planks[i], a=this.bolts[p.a], b=this.bolts[p.b];
+      const dx=b.x-a.x, dy=b.y-a.y, L2=dx*dx+dy*dy;
+      let t=((x-a.x)*dx+(y-a.y)*dy)/L2; t=Math.max(0,Math.min(1,t));
+      const px=a.x+dx*t, py=a.y+dy*t;
+      if(Math.hypot(px-x,py-y)<12) return i;
+    }
+    return -1;
+  }
+  hasPlank(a,b){
+    return this.planks.some(p=>(p.a===a&&p.b===b)||(p.a===b&&p.b===a));
+  }
+  onDown(x,y){
+    if(this.paused) return;
+    if(this.phase!=='build') return;
+    const bi=this.boltAt(x,y);
+    if(bi>=0){
+      if(this.sel<0){ this.sel=bi; this.sfx.play('click'); }
+      else if(this.sel===bi){ this.sel=-1; this.sfx.play('click'); }
+      else this.tryPlace(this.sel,bi);
+      return;
+    }
+    const pi=this.plankAt(x,y);
+    if(pi>=0){ this.removePlank(pi); return; }
+    this.sel=-1;
+  }
+  tryPlace(a,b){
+    const A=this.bolts[a], B=this.bolts[b];
+    const d=Math.hypot(A.x-B.x,A.y-B.y);
+    if(this.hasPlank(a,b)){ this.denyBolt=b; this._denyTick(); this.sfx.play('deny'); this.float(B.x,B.y-22,'already!','#f87171'); return; }
+    const shortR=this.reachShort(), longR=this.reachLong();
+    let long=false;
+    if(this.sandbox){ long = d>shortR; }
+    else if(d<=shortR && this.invShort>0){ long=false; }
+    else if(d<=longR && this.invLong>0){ long=true; }
+    else if(d<=shortR && this.invLong>0){ long=true; }
+    else {
+      this.denyBolt=b; this._denyTick(); this.sfx.play('deny');
+      this.float(B.x,B.y-22, d>longR?'too far!':'no planks!','#f87171');
+      return;
+    }
+    this.planks.push({a,b,long,wob:0});
+    if(!this.sandbox){ if(long) this.invLong--; else this.invShort--; }
+    this.dust(A.x,A.y+6); this.dust(B.x,B.y+6);
+    this.float((A.x+B.x)/2,(A.y+B.y)/2-18,long?'KLONG!':'klonk!','#fbbf24');
+    this.sfx.play('place');
+    this.sel=b; // chain: keep building from the new bolt
+  }
+  removePlank(i){
+    const p=this.planks[i];
+    if(!this.sandbox){ if(p.long) this.invLong++; else this.invShort++; }
+    this.planks.splice(i,1);
+    const A=this.bolts[p.a],B=this.bolts[p.b];
+    this.fx.push({type:'poof',x:(A.x+B.x)/2,y:(A.y+B.y)/2,t:0.45});
+    this.float((A.x+B.x)/2,(A.y+B.y)/2-16,'↩️','#fff');
+    this.sfx.play('remove');
+    if(this.sel===p.a||this.sel===p.b) this.sel=-1;
+  }
+  clearAll(){
+    this.planks=[];
+    this.invShort = this.sandbox||this.level.shorts<0 ? Infinity : this.level.shorts;
+    this.invLong  = this.sandbox||this.level.longs<0  ? Infinity : this.level.longs;
+    this.sel=-1;
+    this.sfx.play('remove');
+    this.float(500,150,'squeaky clean! 🧹','#fff');
+  }
+  _denyTick(){
+    clearTimeout(this._dt);
+    this._dt=setTimeout(()=>{ this.denyBolt=-1; },300);
+  }
+
+  /* ---------------- path finding (no physics, just a graph walk) ---------------- */
+  buildGraph(){
+    const bolts=this.bolts, n=bolts.length, S=n, G=n+1;
+    const adj=Array.from({length:n+2},()=>[]);
+    const d=(i,j)=>Math.hypot(bolts[i].x-bolts[j].x,bolts[i].y-bolts[j].y);
+    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+      if(bolts[i].s===bolts[j].s){
+        const len=Math.abs(bolts[i].x-bolts[j].x);
+        adj[i].push({to:j,walk:true,len}); adj[j].push({to:i,walk:true,len});
+      }
+    }
+    for(const p of this.planks){
+      const len=d(p.a,p.b);
+      adj[p.a].push({to:p.b,walk:false,plank:p,len});
+      adj[p.b].push({to:p.a,walk:false,plank:p,len});
+    }
+    for(let i=0;i<n;i++){
+      const len=Math.abs(bolts[i].x-this.startX);
+      if(bolts[i].s==='L'){ adj[S].push({to:i,walk:true,len}); adj[i].push({to:S,walk:true,len}); }
+      if(bolts[i].s==='R'){ adj[G].push({to:i,walk:true,len}); adj[i].push({to:G,walk:true,len}); }
+    }
+    return {adj,S,G,n};
+  }
+  findPath(){
+    const {adj,S,G,n}=this.buildGraph();
+    const dist=new Array(n+2).fill(Infinity), prev=new Array(n+2).fill(null), vis=new Array(n+2).fill(false);
+    dist[S]=0;
+    for(let it=0;it<n+2;it++){
+      let u=-1,best=Infinity;
+      for(let i=0;i<n+2;i++) if(!vis[i]&&dist[i]<best){best=dist[i];u=i;}
+      if(u<0) break;
+      vis[u]=true;
+      for(const e of adj[u]){
+        const nd=dist[u]+e.len;
+        if(nd<dist[e.to]){ dist[e.to]=nd; prev[e.to]={node:u,edge:e}; }
+      }
+    }
+    let target=G, win=true;
+    if(dist[G]===Infinity){
+      win=false;
+      let bx=-1e9;
+      for(let i=0;i<n;i++) if(dist[i]<Infinity && this.bolts[i].x>bx){ bx=this.bolts[i].x; target=i; }
+      if(target<0) return {win:false,segs:[]};
+    }
+    const segs=[]; let cur=target;
+    while(prev[cur]){ segs.unshift(this.makeSeg(prev[cur].node,prev[cur].edge)); cur=prev[cur].node; }
+    return {win,segs};
+  }
+  makeSeg(fromNode,edge){
+    const a = fromNode>=this.bolts.length ? {x:this.startX,y:this.groundY} : this.bolts[fromNode];
+    const b = edge.to>=this.bolts.length   ? {x:this.goalX, y:this.groundY} : this.bolts[edge.to];
+    if(edge.walk) return {type:'walk',a,b,len:Math.max(1,edge.len)};
+    const sag=(6+edge.len*0.04)*labMult(this.lab,'bridgeSag');
+    const c={x:(a.x+b.x)/2,y:(a.y+b.y)/2+sag};
+    return {type:'plank',a,b,c,len:edge.len,plank:edge.plank};
+  }
+
+  /* ---------------- test phase ---------------- */
+  go(){
+    if(this.phase!=='build') return;
+    const res=this.findPath();
+    this.phase='test'; this.sel=-1;
+    this.walker={
+      segs:res.segs, win:res.win,
+      i:0, t:0, state:'go',
+      buddy:BUDDIES[this.level.buddy],
+      face:1, bubbleT:0, cheerT:0, rescueT:0, rescueX:0,
+      hopping:false, hopT:0, rest:0, dustT:0,
+      x:this.startX, y:this.groundY
+    };
+    this.fx.push({type:'poof',x:this.startX,y:this.groundY-20,t:0.5});
+    this.float(this.startX,this.groundY-46,'here I go!','#fff');
+    this.sfx.play('pop');
+  }
+  recall(){
+    if(this.phase!=='test'||!this.walker) return;
+    const p=this.walkerPos();
+    this.fx.push({type:'poof',x:p.x,y:p.y-10,t:0.4});
+    this.walker=null; this.phase='build';
+    this.sfx.play('click');
+  }
+  segPos(seg,t){
+    if(seg.type==='plank'){
+      const u=1-t;
+      return { x:u*u*seg.a.x+2*u*t*seg.c.x+t*t*seg.b.x,
+               y:u*u*seg.a.y+2*u*t*seg.c.y+t*t*seg.b.y };
+    }
+    return { x:seg.a.x+(seg.b.x-seg.a.x)*t, y:seg.a.y+(seg.b.y-seg.a.y)*t };
+  }
+  walkerPos(){
+    const w=this.walker; if(!w) return {x:this.startX,y:this.groundY};
+    const seg=w.segs[w.i];
+    if(!seg) return {x:w.x,y:w.y};
+    return this.segPos(seg,w.t);
+  }
+
+  update(dt){
+    this.time+=dt;
+    // scenery
+    for(const c of this.clouds){ c.x+=c.v*dt; if(c.x>1080) c.x=-80; }
+    if(this.bird){ this.bird.x+=this.bird.v*dt; this.bird.y+=Math.sin(this.time*6)*12*dt; if(this.bird.x<-60||this.bird.x>1060) this.bird=null; }
+    else { this.birdTimer-=dt; if(this.birdTimer<=0){ const ltr=Math.random()<.5; this.bird={x:ltr?-40:1040,y:rnd(34,120),v:ltr?rnd(55,85):-rnd(55,85)}; this.birdTimer=rnd(9,18); } }
+    for(const r of this.ripples){ r.x+=r.v*dt; if(r.x>1020) r.x=-20; }
+    // fx decay
+    for(const f of this.fx){ f.t-=dt; }
+    this.fx=this.fx.filter(f=>f.t>0);
+    for(const f of this.floats){ f.t-=dt; f.y-=40*dt; }
+    this.floats=this.floats.filter(f=>f.t>0);
+    for(const p of this.planks){ p.wob=Math.max(0,p.wob-dt*1.6); }
+    // fireworks
+    for(const fw of this.fw){
+      fw.age+=dt;
+      for(const p of fw.parts){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=70*dt; }
+    }
+    this.fw=this.fw.filter(fw=>fw.age<1.15);
+
+    if(this.walker) this.stepWalker(dt);
+    this.syncHud();
+  }
+  syncHud(){
+    const h=this.hud;
+    h.phase=this.phase;
+    h.invShort=this.invShort===Infinity?'∞':this.invShort;
+    h.invLong =this.invLong ===Infinity?'∞':this.invLong;
+    h.placed=this.planks.length;
+  }
+  dust(x,y,s){ this.fx.push({type:'dust',x,y,t:0.38,s:s||1}); }
+  float(x,y,txt,c){ this.floats.push({x,y,txt,c:c||'#fff',t:0.9}); }
+
+  stepWalker(dt){
+    const w=this.walker;
+    try{
+      if(w.state==='go'||w.state==='back'){
+        // frog hops in bursts; others walk steadily
+        let v=w.buddy.speed*labMult(this.lab,'buddySpeed');
+        if(w.buddy.mode==='hop'){
+          if(w.hopping){ w.hopT+=dt/0.34; if(w.hopT>=1){ w.hopT=0; w.hopping=false; w.rest=0.12; const p=this.walkerPos(); this.dust(p.x,p.y+3,0.7); } }
+          else { w.rest-=dt; if(w.rest<=0){ w.hopping=true; this.sfx.play('hop'); } }
+          v = w.hopping ? w.buddy.speed*2.4*labMult(this.lab,'hopPower') : 0;
+        }
+        const seg=w.segs[w.i];
+        if(!seg){ this.arrived(); return; }
+        const step=v*dt/seg.len;
+        if(w.state==='go'){
+          w.face = seg.b.x>=seg.a.x?1:-1;
+          w.t+=step;
+          while(w.t>=1){
+            w.t-=1; w.i++;
+            if(w.i>=w.segs.length){ this.arrived(); return; }
+            this.enterSeg();
+          }
+        } else {
+          w.face = seg.b.x>=seg.a.x?-1:1;
+          w.t-=step;
+          while(w.t<=0){
+            w.i--; 
+            if(w.i<0){ this.arrived(); return; }
+            w.t+=1; this.enterSeg();
+          }
+        }
+        // footstep dust
+        if(v>0){ w.dustT+=dt; if(w.dustT>0.24){ w.dustT=0; const p=this.walkerPos(); this.dust(p.x,p.y+3,0.55); } }
+        const p=this.walkerPos(); w.x=p.x; w.y=p.y;
+      }
+      else if(w.state==='bubble'){
+        w.bubbleT+=dt;
+        if(w.bubbleT>1.8){ w.state='back'; w.i=w.segs.length-1; w.t=0.999; }
+      }
+      else if(w.state==='cheer'){
+        w.cheerT+=dt;
+        if(w.cheerT<1.0 && Math.random()<dt*6) this.float(w.x+rnd(-26,26),w.y-rnd(28,50),'💗','#f9a8d4');
+        if(w.cheerT>1.7){
+          const used=this.planks.length;
+          w.state='done';
+          if(this.onWin) this.onWin(used);
+        }
+      }
+      else if(w.state==='rescue'){
+        // defensive lily-pad catch (should basically never happen)
+        w.rescueT+=dt;
+        if(w.rescueT<0.5){ w.y=Math.min(this.waterY-4,w.y+160*dt); }
+        else if(w.rescueT<1.4){ /* sit on the lily pad, wave */ }
+        else { w.x-=60*dt; w.y=this.waterY-4; w.face=-1;
+          if(w.x<=this.startX+8){ this.fx.push({type:'poof',x:w.x,y:w.y-12,t:0.4}); this.endTest(); } }
+      }
+    }catch(err){
+      // ultra-defensive: anything odd → cute lily-pad rescue instead of a stuck buddy
+      w.state='rescue'; w.rescueT=0; w.rescueX=w.x;
+      this.spawnSplash(w.x,this.waterY);
+      this.sfx.play('splash');
+      this.float(w.x,this.waterY-30,'oops! 💦','#bae6fd');
+    }
+  }
+  enterSeg(){
+    const w=this.walker, seg=w.segs[w.i];
+    if(seg && seg.type==='plank' && seg.plank) seg.plank.wob=1;
+    if(seg && seg.type==='plank') this.sfx.play('creak');
+  }
+  arrived(){
+    const w=this.walker;
+    if(w.state==='go'){
+      if(w.win){
+        w.state='cheer'; w.cheerT=0; w.face=1;
+        this.sfx.play('victory');
+        this.spawnFw(this.goalX-30,140,0); this.spawnFw(this.goalX-70,110,0.45); this.spawnFw(this.goalX-10,120,0.9);
+      } else {
+        w.state='bubble'; w.bubbleT=0;
+        this.sfx.play('oops');
+        this.float(w.x,w.y-52,'hmm…','#fff');
+      }
+    } else if(w.state==='back'){
+      this.fx.push({type:'poof',x:this.startX,y:this.groundY-18,t:0.4});
+      this.endTest();
+    }
+  }
+  endTest(){
+    this.walker=null; this.phase='build';
+    if(this.onFail) this.onFail();
+  }
+  spawnFw(x,y,delay){
+    setTimeout(()=>{ if(!this.running) return; this.spawnBurst(x,y); this.sfx.play('pop'); },delay*1000);
+  }
+  spawnBurst(x,y){
+    const cols=['#f472b6','#fbbf24','#4ade80','#60a5fa','#c084fc','#fde047'];
+    const parts=[];
+    for(let i=0;i<26;i++){
+      const a=rnd(0,Math.PI*2), sp=rnd(60,170);
+      parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-40,c:cols[(Math.random()*cols.length)|0]});
+    }
+    this.fw.push({x,y,age:0,parts});
+  }
+  spawnSplash(x,y){
+    for(let i=0;i<8;i++) this.fx.push({type:'drop',x:x+rnd(-10,10),y:y-4,t:rnd(.3,.5),vx:rnd(-30,30),vy:rnd(-90,-40)});
+  }
+
+  /* ============================ RENDER ============================ */
+  render(){
+    const ctx=this.ctx; if(!ctx) return;
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    this.drawSky(ctx);
+    this.drawCanyon(ctx);
+    this.drawPillars(ctx);
+    this.drawWaterFront(ctx);
+    this.drawFlags(ctx);
+    for(const p of this.planks) this.drawPlank(ctx,p);
+    this.drawBolts(ctx);
+    if(this.walker) this.drawWalker(ctx);
+    this.drawFx(ctx);
+    this.drawFloats(ctx);
+    this.drawPreview(ctx);
+    ctx.restore();
+  }
+
+  drawSky(ctx){
+    const th=(this.lab&&this.lab.theme)||'day';
+    const g=ctx.createLinearGradient(0,0,0,this.waterY);
+    if(th==='sunset'){ g.addColorStop(0,'#fb923c'); g.addColorStop(1,'#fde68a'); }
+    else if(th==='night'){ g.addColorStop(0,'#1e1b4b'); g.addColorStop(1,'#3730a3'); }
+    else { g.addColorStop(0,'#8ed4ff'); g.addColorStop(1,'#e7f7d8'); }
+    ctx.fillStyle=g; ctx.fillRect(0,0,this.w,this.waterY);
+    // twinkling stars at night
+    if(th==='night'){
+      ctx.fillStyle='#fff';
+      for(let i=0;i<26;i++){
+        const sx=(i*137)%960+20, sy=(i*61)%130+12;
+        ctx.globalAlpha=0.3+0.6*Math.abs(Math.sin(this.time*2+i));
+        ctx.fillRect(sx,sy,2.4,2.4);
+      }
+      ctx.globalAlpha=1;
+    }
+    if(th==='night'){
+      // moon
+      ctx.fillStyle='#f1f5f9'; ctx.beginPath(); ctx.arc(66,54,24,0,7); ctx.fill();
+      ctx.fillStyle='#cbd5e1'; ctx.beginPath(); ctx.arc(58,48,5,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(76,62,3.6,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(62,64,2.6,0,7); ctx.fill();
+    } else {
+      // sun with slow-turning rays
+      ctx.save();
+      ctx.translate(66,54); ctx.rotate(this.time*0.08);
+      ctx.strokeStyle=th==='sunset'?'rgba(253,186,116,.7)':'rgba(253,224,71,.6)'; ctx.lineWidth=5; ctx.lineCap='round';
+      for(let i=0;i<10;i++){ const a=i/10*Math.PI*2; ctx.beginPath(); ctx.moveTo(Math.cos(a)*34,Math.sin(a)*34); ctx.lineTo(Math.cos(a)*46,Math.sin(a)*46); ctx.stroke(); }
+      ctx.restore();
+      ctx.fillStyle=th==='sunset'?'#fb923c':'#fde047'; ctx.beginPath(); ctx.arc(66,54,26,0,7); ctx.fill();
+      ctx.fillStyle=th==='sunset'?'#ffedd5':'#fef9c3'; ctx.beginPath(); ctx.arc(60,49,9,0,7); ctx.fill();
+    }
+    // clouds
+    for(const c of this.clouds){
+      ctx.fillStyle=th==='night'?'rgba(148,163,184,.55)':'rgba(255,255,255,.92)';
+      const s=c.s;
+      ctx.beginPath();
+      ctx.ellipse(c.x,c.y,34*s,15*s,0,0,7);
+      ctx.ellipse(c.x-22*s,c.y+5*s,20*s,11*s,0,0,7);
+      ctx.ellipse(c.x+24*s,c.y+4*s,22*s,12*s,0,0,7);
+      ctx.fill();
+    }
+    // bird
+    if(this.bird){
+      ctx.save();
+      ctx.translate(this.bird.x,this.bird.y+Math.sin(this.time*7)*4);
+      if(this.bird.v<0) ctx.scale(-1,1);
+      ctx.scale(1,0.7+0.3*Math.abs(Math.sin(this.time*9)));
+      ctx.font='22px '+EMOJI_FONT; ctx.fillText('🐦',0,0);
+      ctx.restore();
+    }
+    // faraway canyon silhouettes
+    ctx.fillStyle=th==='night'?'rgba(15,23,42,.55)':'rgba(134,197,164,.35)';
+    ctx.beginPath(); ctx.moveTo(120,340); ctx.quadraticCurveTo(300,190,520,340); ctx.lineTo(120,340); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(520,340); ctx.quadraticCurveTo(740,170,980,340); ctx.lineTo(520,340); ctx.fill();
+  }
+
+  drawCanyon(ctx){
+    const th=(this.lab&&this.lab.theme)||'day';
+    const LE=this.level.leftEdge, RE=this.level.rightEdge;
+    // water behind pillars
+    const wg=ctx.createLinearGradient(0,this.waterY,0,this.h);
+    if(th==='sunset'){ wg.addColorStop(0,'#fb7185'); wg.addColorStop(1,'#be123c'); }
+    else if(th==='night'){ wg.addColorStop(0,'#4f46e5'); wg.addColorStop(1,'#1e1b4b'); }
+    else { wg.addColorStop(0,'#4fc3f7'); wg.addColorStop(1,'#0288d1'); }
+    ctx.fillStyle=wg; ctx.fillRect(0,this.waterY,this.w,this.h-this.waterY);
+    // cliff walls
+    this.drawCliff(ctx,0,LE,true);
+    this.drawCliff(ctx,RE,this.w-RE,false);
+    // flowers on the grass
+    for(const f of this.flowers){ ctx.font=f.s+'px '+EMOJI_FONT; ctx.fillText(f.e,f.x,f.y); }
+  }
+  drawCliff(ctx,x0,wid,left){
+    const y=this.groundY, bot=this.h;
+    const g=ctx.createLinearGradient(0,y,0,bot);
+    g.addColorStop(0,'#e0b072'); g.addColorStop(1,'#a97a3f');
+    ctx.fillStyle=g;
+    rr(ctx,x0+2,y-2,wid-4,bot-y+2,14); ctx.fill();
+    // rock strata
+    ctx.strokeStyle='rgba(122,80,30,.35)'; ctx.lineWidth=3;
+    for(let i=1;i<5;i++){
+      const yy=y+26*i;
+      ctx.beginPath(); ctx.moveTo(x0+8,yy); ctx.lineTo(x0+wid-8,yy+((i%2)?4:-3)); ctx.stroke();
+    }
+    // a few pebbles on the face
+    ctx.fillStyle='rgba(122,80,30,.3)';
+    ctx.beginPath(); ctx.ellipse(x0+wid*(left?.7:.3),y+66,10,6,0,0,7); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x0+wid*(left?.4:.62),y+110,13,7,0,0,7); ctx.fill();
+    // grass cap
+    ctx.fillStyle='#7ecb4f';
+    rr(ctx,x0-2,y-8,wid+4,16,8); ctx.fill();
+    ctx.strokeStyle='#5aab33'; ctx.lineWidth=2;
+    for(let gx=x0+10;gx<x0+wid-6;gx+=24){
+      ctx.beginPath(); ctx.moveTo(gx,y-6); ctx.quadraticCurveTo(gx+3,y-15+Math.sin(this.time*1.4+gx)*2,gx+6,y-9); ctx.stroke();
+    }
+  }
+  drawPillars(ctx){
+    for(const p of this.level.pillars){
+      const x=p.x-p.w/2, top=p.top, w=p.w;
+      const g=ctx.createLinearGradient(x,0,x+w,0);
+      g.addColorStop(0,'#d8ab6e'); g.addColorStop(.5,'#c89456'); g.addColorStop(1,'#b07c3f');
+      ctx.fillStyle=g;
+      rr(ctx,x,top,w,this.waterY+26-top,Math.min(20,w/2)); ctx.fill();
+      // strata
+      ctx.strokeStyle='rgba(122,80,30,.3)'; ctx.lineWidth=2.5;
+      for(let i=1;i<4;i++){
+        const yy=top+(this.waterY-top)*i/4.2;
+        ctx.beginPath(); ctx.moveTo(x+6,yy); ctx.lineTo(x+w-6,yy+((i%2)?3:-3)); ctx.stroke();
+      }
+      // mossy top
+      ctx.fillStyle='#7ecb4f';
+      rr(ctx,x-3,top-6,w+6,12,7); ctx.fill();
+      // foam ring at the waterline
+      ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.ellipse(p.x,this.waterY+6,w/2+4,7,0,0,7); ctx.stroke();
+    }
+  }
+  drawWaterFront(ctx){
+    // ripple highlights
+    ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=2.5; ctx.lineCap='round';
+    for(const r of this.ripples){
+      const yy=this.waterY+10+Math.sin(this.time*2+r.ph)*3;
+      ctx.beginPath(); ctx.moveTo(r.x-14,yy); ctx.quadraticCurveTo(r.x,yy-4,r.x+14,yy); ctx.stroke();
+    }
+    // lily pads (the buddies' safety net)
+    for(const pd of this.pads){
+      ctx.fillStyle='#66bb6a';
+      ctx.beginPath(); ctx.ellipse(pd.x,pd.y,22,8,0,0.35,Math.PI*2+0.35); ctx.fill();
+      ctx.fillStyle='#a5d6a7';
+      ctx.beginPath(); ctx.ellipse(pd.x-4,pd.y-2,10,3.5,0,0,7); ctx.fill();
+      if(pd.f){ ctx.font='11px '+EMOJI_FONT; ctx.fillText('🌸',pd.x+9,pd.y-6); }
+    }
+    // sparkles
+    for(let i=0;i<3;i++){
+      const sx=(this.time*40+i*340)%1040-20, sy=this.waterY+26+i*18;
+      ctx.globalAlpha=.4+.4*Math.abs(Math.sin(this.time*3+i));
+      ctx.fillStyle='#fff'; ctx.fillRect(sx,sy,5,2);
+      ctx.globalAlpha=1;
+    }
+  }
+  drawFlags(ctx){
+    // start pennant
+    const sx=34, sy=this.groundY;
+    ctx.strokeStyle='#7c5c33'; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx,sy-52); ctx.stroke();
+    ctx.fillStyle='#f43f5e';
+    const w1=Math.sin(this.time*3)*4;
+    ctx.beginPath(); ctx.moveTo(sx,sy-52); ctx.quadraticCurveTo(sx+22,sy-48+w1,sx+40,sy-44+w1); ctx.lineTo(sx+40,sy-32+w1); ctx.quadraticCurveTo(sx+22,sy-36+w1,sx,sy-32); ctx.closePath(); ctx.fill();
+    // goal checkered flag
+    const gx=this.goalX, gy=this.groundY;
+    ctx.strokeStyle='#7c5c33'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(gx,gy); ctx.lineTo(gx,gy-72); ctx.stroke();
+    ctx.fillStyle='#fde047'; ctx.beginPath(); ctx.arc(gx,gy,7,0,7); ctx.fill();
+    const cell=13;
+    for(let col=0;col<4;col++)for(let row=0;row<3;row++){
+      ctx.fillStyle=(col+row)%2? '#334155':'#f8fafc';
+      const wob=Math.sin(this.time*4+col*0.9)*3.5;
+      ctx.fillRect(gx+col*cell, gy-72+row*cell+wob*0.4, cell, cell);
+    }
+    ctx.font='15px '+EMOJI_FONT; ctx.fillText('🏁',gx+22,gy-60);
+  }
+  drawPlank(ctx,p){
+    const a=this.bolts[p.a], b=this.bolts[p.b];
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    const sag=(6+Math.hypot(b.x-a.x,b.y-a.y)*0.035)*labMult(this.lab,'bridgeSag') + Math.sin(this.time*15)*5*p.wob;
+    ctx.lineCap='round';
+    // board body
+    ctx.strokeStyle = p.long ? '#9c5a24' : '#c98a4b';
+    ctx.lineWidth=14;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo(mx,my+sag,b.x,b.y); ctx.stroke();
+    // top highlight
+    ctx.strokeStyle='rgba(255,241,204,.4)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y-3); ctx.quadraticCurveTo(mx,my+sag-4,b.x,b.y-3); ctx.stroke();
+    // grain stripes
+    ctx.strokeStyle='rgba(90,50,10,.38)'; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y+2); ctx.quadraticCurveTo(mx,my+sag+2,b.x,b.y+2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a.x,a.y-1); ctx.quadraticCurveTo(mx,my+sag-1,b.x,b.y-1); ctx.stroke();
+    // long planks wear golden bands
+    if(p.long){
+      const dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx,dy), nx=-dy/L*8, ny=dx/L*8;
+      ctx.strokeStyle='#ffd27f'; ctx.lineWidth=3;
+      for(const t of [0.33,0.66]){
+        const px=a.x+dx*t, py=a.y+dy*t+sag*0.7;
+        ctx.beginPath(); ctx.moveTo(px-nx,py-ny); ctx.lineTo(px+nx,py+ny); ctx.stroke();
+      }
+    }
+    // nails
+    ctx.fillStyle='#8b98a8';
+    ctx.beginPath(); ctx.arc(a.x,a.y,3.2,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x,b.y,3.2,0,7); ctx.fill();
+  }
+  drawBolts(ctx){
+    for(let i=0;i<this.bolts.length;i++){
+      const b=this.bolts[i];
+      const selB=i===this.sel;
+      const pulse=1+Math.sin(this.time*6)*0.5;
+      // soft shadow
+      ctx.fillStyle='rgba(0,0,0,.14)';
+      ctx.beginPath(); ctx.ellipse(b.x,b.y+9,9,3.4,0,0,7); ctx.fill();
+      if(selB){
+        ctx.strokeStyle='rgba(251,191,36,'+(0.5+0.3*Math.sin(this.time*7))+')';
+        ctx.lineWidth=4;
+        ctx.beginPath(); ctx.arc(b.x,b.y,14+2*pulse,0,7); ctx.stroke();
+      }
+      if(this.denyBolt===i){
+        ctx.strokeStyle='rgba(248,113,113,.9)'; ctx.lineWidth=4;
+        ctx.beginPath(); ctx.arc(b.x,b.y,16,0,7); ctx.stroke();
+      }
+      // hover ring when another bolt is selected
+      if(this.phase==='build' && selB===false && this.sel>=0 && this.hover.active){
+        const d=Math.hypot(this.hover.x-b.x,this.hover.y-b.y);
+        if(d<26){
+          const bd=Math.hypot(this.bolts[this.sel].x-b.x,this.bolts[this.sel].y-b.y);
+          const reach=this.usableReach();
+          ctx.strokeStyle= bd<=reach ? 'rgba(74,222,128,.95)' : 'rgba(248,113,113,.9)';
+          ctx.lineWidth=4;
+          ctx.beginPath(); ctx.arc(b.x,b.y,15,0,7); ctx.stroke();
+        }
+      }
+      // steel rivet body
+      ctx.fillStyle='#cbd5e1';
+      ctx.beginPath(); ctx.arc(b.x,b.y,10,0,7); ctx.fill();
+      ctx.strokeStyle='#64748b'; ctx.lineWidth=2.5; ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(b.x-1,b.y-1,6,Math.PI*1.05,Math.PI*1.55); ctx.stroke();
+      // smiling face (with blinks)
+      const blink=Math.sin(this.time*0.9+b.seed)>0.975;
+      ctx.fillStyle='#334155';
+      if(blink){
+        ctx.fillRect(b.x-4.6,b.y-2.4,3,1.4); ctx.fillRect(b.x+1.6,b.y-2.4,3,1.4);
+      } else {
+        ctx.beginPath(); ctx.arc(b.x-3.1,b.y-2.2,1.5,0,7); ctx.fill();
+        ctx.beginPath(); ctx.arc(b.x+3.1,b.y-2.2,1.5,0,7); ctx.fill();
+      }
+      ctx.strokeStyle='#334155'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(b.x,b.y+1,3.4,Math.PI*0.18,Math.PI*0.82); ctx.stroke();
+      ctx.fillStyle='rgba(244,114,182,.4)';
+      ctx.beginPath(); ctx.arc(b.x-6,b.y+2.4,1.7,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(b.x+6,b.y+2.4,1.7,0,7); ctx.fill();
+    }
+  }
+  usableReach(){
+    const shortR=this.reachShort(), longR=this.reachLong();
+    if(this.sandbox) return longR;
+    if(this.invShort>0) return shortR;
+    if(this.invLong>0) return longR;
+    return shortR;
+  }
+  reachShort(){ return REACH*labMult(this.lab,'plankReach'); }
+  reachLong(){ return LONG_REACH*labMult(this.lab,'plankReach'); }
+  drawWalker(ctx){
+    const w=this.walker;
+    const p=this.walkerPos();
+    let jumpY=0, rot=0, sq=1;
+    if(w.state==='cheer'){ jumpY=Math.abs(Math.sin(w.cheerT*7))*18; }
+    else if(w.state==='bubble'){ rot=Math.sin(w.bubbleT*9)*0.14; }
+    else if(w.buddy.mode==='waddle'){ rot=Math.sin(this.time*9)*0.11; }
+    const hopArc = (w.buddy.mode==='hop'&&w.hopping) ? Math.sin(w.hopT*Math.PI)*15 : 0;
+    const bob = w.buddy.mode==='walk' ? Math.abs(Math.sin(this.time*8))*3 : 0;
+    sq = 1+Math.sin(this.time*8)*0.04;
+    // shadow sticks to the walk surface
+    ctx.fillStyle='rgba(0,0,0,.17)';
+    ctx.beginPath(); ctx.ellipse(p.x,p.y+4,12-hopArc*0.3,4,0,0,7); ctx.fill();
+    // lily pad under a rescued buddy
+    if(w.state==='rescue'&&w.rescueT>0.45){
+      ctx.fillStyle='#66bb6a';
+      ctx.beginPath(); ctx.ellipse(w.x,w.y+7,24,8,0,0.35,Math.PI*2+0.35); ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(p.x,p.y-16-bob-hopArc-jumpY);
+    if(w.face===1 && w.buddy.side==='left') ctx.scale(-1,1);
+    if(w.face===-1 && w.buddy.side!=='left') ctx.scale(-1,1);
+    ctx.rotate(rot);
+    ctx.scale(1,sq);
+    ctx.font='32px '+EMOJI_FONT;
+    ctx.fillText(w.buddy.emoji,0,0);
+    ctx.restore();
+    // friendly "need more bridge" bubble
+    if(w.state==='bubble'){
+      const k=Math.min(1,w.bubbleT*5);
+      ctx.save();
+      ctx.translate(p.x,p.y-52); ctx.scale(k,k);
+      ctx.fillStyle='rgba(255,255,255,.96)';
+      rr(ctx,-92,-19,184,38,12); ctx.fill();
+      ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-6,19); ctx.lineTo(0,29); ctx.lineTo(6,19); ctx.closePath(); ctx.fill();
+      ctx.font='bold 15px '+KID_FONT; ctx.fillStyle='#334155';
+      ctx.fillText('🛠️ Need more bridge!',0,1);
+      ctx.restore();
+    }
+  }
+  drawFx(ctx){
+    for(const f of this.fx){
+      const k=f.t/0.4;
+      if(f.type==='dust'){
+        ctx.globalAlpha=k*0.6;
+        ctx.fillStyle='#e7cfa4';
+        ctx.beginPath(); ctx.arc(f.x,f.y,(1-k)*7+2,0,7); ctx.fill();
+      } else if(f.type==='poof'){
+        ctx.globalAlpha=k;
+        ctx.strokeStyle='#fde68a'; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(f.x,f.y,(1-k)*26+8,0,7); ctx.stroke();
+        ctx.font='20px '+EMOJI_FONT; ctx.fillText('💫',f.x,f.y-(1-k)*16);
+      } else if(f.type==='drop'){
+        f.x+=f.vx*0.016; f.y+=f.vy*0.016; f.vy+=300*0.016;
+        ctx.globalAlpha=Math.max(0,k);
+        ctx.fillStyle='#bde5ff';
+        ctx.beginPath(); ctx.arc(f.x,f.y,2.4,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }
+    // fireworks
+    for(const fw of this.fw){
+      const a=Math.max(0,1-fw.age/1.1);
+      for(const p of fw.parts){
+        ctx.globalAlpha=a*(0.6+0.4*Math.sin(fw.age*20+p.x));
+        ctx.fillStyle=p.c;
+        ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=1;
+    }
+  }
+  drawFloats(ctx){
+    for(const f of this.floats){
+      ctx.globalAlpha=Math.max(0,Math.min(1,f.t/0.7));
+      ctx.font='bold 15px '+KID_FONT;
+      ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.6)';
+      ctx.strokeText(f.txt,f.x,f.y);
+      ctx.fillStyle=f.c; ctx.fillText(f.txt,f.x,f.y);
+      ctx.globalAlpha=1;
+    }
+  }
+  drawPreview(ctx){
+    if(this.phase!=='build'||this.sel<0||!this.hover.active) return;
+    const A=this.bolts[this.sel];
+    const reach=this.usableReach();
+    // reach ring
+    ctx.save();
+    ctx.setLineDash([7,9]);
+    ctx.lineDashOffset=-this.time*26;
+    ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(A.x,A.y,reach,0,7); ctx.stroke();
+    // dashed line to cursor
+    const d=Math.hypot(this.hover.x-A.x,this.hover.y-A.y);
+    ctx.strokeStyle = d<=reach ? 'rgba(74,222,128,.9)' : 'rgba(248,113,113,.85)';
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(this.hover.x,this.hover.y); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ============================ PROFILE / SAVE ============================ */
+function defaultProfile(){
+  return { cleared:0, stars:{}, sandbox:false, sound:true, built:0, lab:defaultLab() };
+}
+function loadProfile(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(raw){
+      const p=JSON.parse(raw), d=defaultProfile();
+      return Object.assign(d,p,{
+        stars:Object.assign({},p.stars||{}),
+        lab:Object.assign(defaultLab(),p.lab||{})
+      });
+    }
+  }catch(e){}
+  return defaultProfile();
+}
+
+/* ============================ VUE APP ============================ */
+const app = Vue.createApp({
+  data(){
+    return {
+      VERSION,
+      screen:'menu',
+      profile: loadProfile(),
+      hud:{ phase:'build', invShort:0, invLong:0, placed:0 },
+      scene:null, levelIdx:0,
+      result:null, resultStars:0, usedPlanks:0,
+      paused:false, clearArmed:false, resetArmed:false,
+      toasts:[], toastSeq:0, confetti:[],
+      labCode:'', labMsg:'', labMsgOk:false, labReturn:'menu',
+      LAB_DEFS, LAB_THEMES
+    };
+  },
+  computed:{
+    levelDef(){ return LEVELS[this.levelIdx]||LEVELS[0]; },
+    isSandbox(){ return this.levelIdx===12; },
+    hasLongs(){ return this.levelIdx===12 || this.levelDef.longs>0; },
+    currentBuddy(){ return BUDDIES[this.levelDef.buddy].name; },
+    sandboxUnlocked(){ return this.profile.cleared>=12 || this.profile.sandbox; },
+    totalStars(){
+      let s=0;
+      for(let i=0;i<12;i++) s+=(this.profile.stars[i]||0);
+      return s;
+    },
+    levelCards(){
+      const out=[];
+      for(let i=0;i<12;i++){
+        out.push({
+          idx:i, name:LEVELS[i].name, emoji:BUDDIES[LEVELS[i].buddy].emoji,
+          stars:this.profile.stars[i]||0,
+          locked:this.isLocked(i),
+          isNext:i===this.profile.cleared
+        });
+      }
+      return out;
+    },
+    starMsg(){
+      if(this.resultStars>=3) return 'PERFECT BUILDING!';
+      if(this.resultStars===2) return 'Great bridge!';
+      return 'You did it!';
+    },
+    appBg(){
+      const t=(this.profile.lab&&this.profile.lab.theme)||'day';
+      if(t==='sunset') return {background:'linear-gradient(180deg,#fda4af 0%,#fdba74 55%,#fde68a 100%)'};
+      if(t==='night')  return {background:'linear-gradient(180deg,#1e1b4b 0%,#3730a3 55%,#64748b 100%)'};
+      return {};
+    },
+    titleCls(){
+      const t=(this.profile.lab&&this.profile.lab.theme)||'day';
+      if(t==='sunset') return 'text-orange-950 drop-shadow-[0_2px_0_rgba(255,255,255,.5)]';
+      return 'text-white drop-shadow-[0_3px_0_rgba(0,0,0,.25)]';
+    },
+    softText(){
+      const t=(this.profile.lab&&this.profile.lab.theme)||'day';
+      if(t==='sunset') return 'text-orange-950/85';
+      if(t==='night')  return 'text-white/85 drop-shadow';
+      return 'text-white/90 drop-shadow';
+    },
+    labReadout(){
+      const l=this.profile.lab;
+      return 'now → plankReach ×'+l.plankReach+' · buddySpeed ×'+l.buddySpeed+' · bridgeSag ×'+l.bridgeSag+' · hopPower ×'+l.hopPower;
+    }
+  },
+  methods:{
+    /* ------- navigation ------- */
+    go(screen){ SFX.play('click'); this.screen=screen; },
+    isLocked(i){ return i>this.profile.cleared; },
+
+    /* ------- Game Master Lab ------- */
+    openLab(from){
+      SFX.play('click');
+      this.labReturn=(from==='pause'&&this.scene)?'game':'menu';
+      if(this.labReturn==='game'){
+        this.paused=true; this.scene.paused=true;
+        this.scene.stop(); // rAF loop fully stops while the Lab is open (no double loops)
+      }
+      this.labMsg=''; this.screen='lab';
+    },
+    closeLab(){
+      SFX.play('click');
+      if(this.labReturn==='game'&&this.scene){
+        this.screen='game'; // still paused — the pause overlay welcomes you back
+        this.$nextTick(()=>{
+          if(this.scene&&this.$refs.cv){
+            this.scene.attach(this.$refs.cv); // canvas was re-created by v-if
+            this.scene.start();
+          }
+        });
+      } else {
+        this.labReturn='menu';
+        this.screen='menu';
+      }
+    },
+    setLab(key,ev){
+      const d=LAB_DEFS.find(x=>x.key===key); if(!d) return;
+      let v=parseFloat(ev.target.value); if(!isFinite(v)) v=d.def;
+      v=Math.max(d.min,Math.min(d.max,v));
+      this.profile.lab[key]=Math.round(v*100)/100;
+      this.save();
+    },
+    pickTheme(key){ this.profile.lab.theme=key; this.save(); SFX.play('click'); },
+    resetLab(){
+      Object.assign(this.profile.lab, defaultLab()); // keep object identity (a running scene holds this ref)
+      this.save(); SFX.play('click');
+      this.labMsg=''; this.labMsgOk=false;
+      this.pushToast('Lab back to normal! 🛠️','↩️');
+    },
+    fmtNum(n){ return Math.round(n*100)/100; },
+
+    /* --- mini code box: tiny whitelist tokenizer + parser (never eval) --- */
+    tokenizeLab(src){
+      const toks=[]; let i=0;
+      while(i<src.length){
+        const ch=src[i];
+        if(ch===' '||ch==='\t'){ i++; continue; }
+        if((ch>='0'&&ch<='9')||ch==='.'){
+          let j=i;
+          while(j<src.length&&((src[j]>='0'&&src[j]<='9')||src[j]==='.')) j++;
+          const word=src.slice(i,j);
+          if(!/^(\d+\.?\d*|\.\d+)$/.test(word)) return {err:'Oops — `'+word+'` is not a number I know.'};
+          toks.push({t:'n',v:parseFloat(word)}); i=j; continue;
+        }
+        if((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||ch==='_'){
+          let j=i;
+          while(j<src.length&&/[a-zA-Z0-9_]/.test(src[j])) j++;
+          toks.push({t:'id',v:src.slice(i,j)}); i=j; continue;
+        }
+        if('+-*/()'.indexOf(ch)>=0){ toks.push({t:'op',v:ch}); i++; continue; }
+        return {err:"Oops — I don't understand the symbol `"+ch+"`. I only know numbers, + - * / ( ) and my variable names."};
+      }
+      return {toks};
+    },
+    parseLabTokens(toks){
+      const self=this; let pos=0;
+      function peek(){ return toks[pos]; }
+      function parseExpr(){
+        let v=parseTerm();
+        while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){
+          const op=toks[pos++].v, r=parseTerm();
+          v=op==='+'?v+r:v-r;
+        }
+        return v;
+      }
+      function parseTerm(){
+        let v=parseFactor();
+        while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){
+          const op=toks[pos++].v, r=parseFactor();
+          if(op==='/'){
+            if(r===0) throw {labErr:'Oops — dividing by zero is impossible, even for bridge builders!'};
+            v=v/r;
+          } else v=v*r;
+        }
+        return v;
+      }
+      function parseFactor(){
+        const t=toks[pos++];
+        if(!t) throw {labErr:'Oops — your math stopped mid-trick. Put a number at the end!'};
+        if(t.t==='n') return t.v;
+        if(t.t==='id') return self.profile.lab[t.v];
+        if(t.t==='op'&&t.v==='('){
+          const v=parseExpr();
+          const c=toks[pos++];
+          if(!c||c.v!==')') throw {labErr:'Oops — you opened a ( but never closed it with ) !'};
+          return v;
+        }
+        if(t.t==='op'&&t.v==='-') return -parseFactor();
+        if(t.t==='op'&&t.v==='+') return parseFactor();
+        throw {labErr:'Oops — I got confused near `'+t.v+'`. Try something like plankReach = 1.2'};
+      }
+      const v=parseExpr();
+      if(pos<toks.length) throw {labErr:'Oops — I got stuck at `'+toks[pos].v+'`. Try simpler math!'};
+      return v;
+    },
+    runLabCode(){
+      const raw=(this.labCode||'').trim();
+      if(!raw){ this.labMsg='Type something like: plankReach = 1.2'; this.labMsgOk=false; return; }
+      try{
+        let name=null, expr=raw;
+        const eq=raw.indexOf('=');
+        if(eq>=0){
+          if(raw.indexOf('=',eq+1)>=0){ this.labMsg='Oops — only one = per line, please!'; this.labMsgOk=false; return; }
+          name=raw.slice(0,eq).trim(); expr=raw.slice(eq+1);
+          if(LAB_KEYS.indexOf(name)<0){
+            this.labMsg="Oops — I don't know a variable called `"+name+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const tk=this.tokenizeLab(expr);
+        if(tk.err){ this.labMsg=tk.err; this.labMsgOk=false; return; }
+        if(!tk.toks.length){ this.labMsg='Oops — nothing to do after the =. Add some math!'; this.labMsgOk=false; return; }
+        for(const t of tk.toks){
+          if(t.t==='id' && LAB_KEYS.indexOf(t.v)<0){
+            this.labMsg="Oops — I don't know a variable called `"+t.v+"`. Try one of: "+LAB_KEYS.join(', ')+'.';
+            this.labMsgOk=false; return;
+          }
+        }
+        const val=this.parseLabTokens(tk.toks);
+        if(!isFinite(val)){ this.labMsg='Oops — that math flew off to infinity! Try smaller numbers.'; this.labMsgOk=false; return; }
+        if(name){
+          const def=LAB_DEFS.find(d=>d.key===name);
+          const valFmt=this.fmtNum(val);
+          const clamped=this.fmtNum(Math.max(def.min,Math.min(def.max,val)));      // clamp to the allowed range
+          const snapped=this.fmtNum(def.min+Math.round((clamped-def.min)/def.step)*def.step); // snap to the slider's steps
+          const wasClamped=clamped!==valFmt;
+          let note='';
+          if(snapped!==clamped) note=' I snapped it to '+snapped+' — this dial moves in steps of '+def.step+'.';
+          const v=snapped;
+          this.profile.lab[name]=v;
+          this.save(); SFX.play('place');
+          this.labMsg = wasClamped
+            ? '✨ '+name+' wanted to be '+valFmt+', but I kept it safe at '+v+' (allowed: '+def.min+' to '+def.max+').'+note
+            : (valFmt!==v
+              ? '✨ I snapped '+valFmt+' to '+v+' — this dial moves in steps of '+def.step+'.'
+              : '✨ Done! '+name+' = '+v+'. Go play and feel it!');
+          this.labMsgOk=true;
+        } else {
+          this.labMsg='✨ That equals '+this.fmtNum(val)+'! To change the game, write: name = number.';
+          this.labMsgOk=true; SFX.play('click');
+        }
+      }catch(e){
+        this.labMsg=(e&&e.labErr)?e.labErr:'Oops — that one stumped me. Try something like bridgeSag = 0';
+        this.labMsgOk=false;
+      }
+    },
+
+    /* ------- level lifecycle ------- */
+    startLevel(i){
+      if(i===12 && !this.sandboxUnlocked) return;
+      if(i<12 && this.isLocked(i)) return;
+      SFX.play('click');
+      this.destroyScene();
+      this.levelIdx=i;
+      this.result=null; this.paused=false; this.clearArmed=false;
+      this.screen='game';
+      this.$nextTick(()=>this.initScene());
+    },
+    initScene(){
+      const cv=this.$refs.cv;
+      if(!cv) return;
+      this.scene=new BridgeScene({
+        level:LEVELS[this.levelIdx], levelIdx:this.levelIdx,
+        sandbox:this.levelIdx===12,
+        sfx:SFX, hud:this.hud, lab:this.profile.lab,
+        onWin:(used)=>this.onSceneWin(used),
+        onFail:()=>this.onSceneFail()
+      });
+      this.scene.attach(cv);
+      this.scene.start();
+      if(this.levelIdx===12) this.pushToast('Unlimited planks! Build anything, Skitter! 🐿️','🏝️');
+    },
+    destroyScene(){
+      if(this.scene){ this.scene.destroy(); this.scene=null; }
+    },
+    quitToLevels(){
+      this.destroyScene();
+      this.result=null; this.paused=false;
+      this.go('levels');
+    },
+    restartLevel(){ this.startLevel(this.levelIdx); },
+    nextLevel(){ this.startLevel(this.levelIdx+1); },
+
+    /* ------- build controls ------- */
+    onGo(){ if(this.scene && this.hud.phase==='build'){ this.scene.go(); } },
+    onRecall(){ if(this.scene){ this.scene.recall(); } },
+    armClear(){
+      this.clearArmed=true;
+      clearTimeout(this._ca);
+      this._ca=setTimeout(()=>{ this.clearArmed=false; },6000);
+    },
+    doClear(){
+      this.clearArmed=false;
+      if(this.scene) this.scene.clearAll();
+      this.pushToast('All planks back in the box!','🧹');
+    },
+
+    /* ------- scene callbacks ------- */
+    onSceneWin(used){
+      const i=this.levelIdx;
+      if(i===12){
+        // sandbox: celebrate and keep playing, no overlay, no stars
+        this.profile.built++; this.save();
+        this.pushToast('What a bridge, Skitter! 🎉','🌉');
+        if(this.scene){ this.scene.walker=null; this.scene.phase='build'; }
+        return;
+      }
+      const par=this.levelDef.par;
+      const stars = used<=par ? 3 : (used<=par+1 ? 2 : 1);
+      const best=this.profile.stars[i]||0;
+      if(stars>best) this.profile.stars[i]=stars;
+      const firstTime=i>=this.profile.cleared;
+      if(firstTime) this.profile.cleared=i+1;
+      this.profile.built++;
+      if(this.profile.cleared>=12 && !this.profile.sandbox){
+        this.profile.sandbox=true;
+        this.pushToast('Sandbox unlocked! 🏝️','🎉');
+      }
+      this.result='win'; this.resultStars=stars; this.usedPlanks=used;
+      this.save();
+      this.spawnConfetti();
+      if(this.scene) this.scene.stop();
+    },
+    onSceneFail(){
+      this.pushToast('Need more bridge! Add a plank and try again.','🛠️');
+    },
+
+    /* ------- pause ------- */
+    togglePause(){
+      if(this.screen!=='game'||this.result) return;
+      this.paused=!this.paused;
+      if(this.scene) this.scene.paused=this.paused;
+      SFX.play('click');
+    },
+    resumeGame(){
+      this.paused=false;
+      if(this.scene) this.scene.paused=false;
+      SFX.play('click');
+    },
+
+    /* ------- settings ------- */
+    toggleSound(){
+      this.profile.sound=!this.profile.sound;
+      SFX.on=this.profile.sound;
+      this.save(); SFX.play('click');
+      this.pushToast(this.profile.sound?'Sound on 🔊':'Sound off 🔇','🔊');
+    },
+    armReset(){
+      this.resetArmed=true;
+      clearTimeout(this._ra);
+      this._ra=setTimeout(()=>{ this.resetArmed=false; },6000);
+    },
+    doReset(){
+      try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+      this.profile=defaultProfile();
+      this.resetArmed=false;
+      SFX.on=true;
+      this.destroyScene();
+      this.screen='menu';
+      this.pushToast('Fresh start! Happy building!','🌱');
+    },
+
+    /* ------- misc ------- */
+    save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(this.profile)); }catch(e){} },
+    pushToast(msg,emoji){
+      const id=++this.toastSeq;
+      this.toasts.push({id,msg,emoji:emoji||'🌉'});
+      setTimeout(()=>{ this.toasts=this.toasts.filter(t=>t.id!==id); },2600);
+    },
+    spawnConfetti(){
+      const em=['⭐','🎉','🌉','💛','✨','🦔','🦆','🐸'];
+      const out=[];
+      for(let i=0;i<28;i++){
+        out.push({ e:em[(Math.random()*em.length)|0],
+          left:Math.random()*96, dur:(2.2+Math.random()*1.6),
+          delay:Math.random()*0.7, size:16+Math.random()*18 });
+      }
+      this.confetti=out;
+    }
+  },
+  mounted(){
+    SFX.on=this.profile.sound;
+    window.addEventListener('keydown',(e)=>{
+      const tag=(e.target&&e.target.tagName)||'';
+      if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return; // never steal keys while typing in the code box
+      if(this.screen==='lab'){
+        if(e.key==='Escape'){ e.preventDefault(); this.closeLab(); }
+        return;
+      }
+      if(this.screen!=='game') return;
+      if(e.key===' '||e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='ArrowUp'||e.key==='ArrowDown'){
+        e.preventDefault();
+        if(this.result||this.paused) return;
+        if(e.key===' '){ if(this.hud.phase==='build') this.onGo(); else this.onRecall(); }
+      } else if(e.key==='p'||e.key==='P'){
+        if(!this.result) this.togglePause();
+      } else if(e.key==='Escape'){
+        if(this.result) return;
+        if(this.paused) this.resumeGame(); else this.togglePause();
+      }
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden && this.screen==='game' && this.scene && !this.result && !this.paused){
+        this.paused=true; this.scene.paused=true;
+      }
+    });
+    document.addEventListener('pointerdown',()=>SFX.ensure());
+    this.pushToast('Welcome, builders! 🌉','👋');
+  }
+});
+app.mount('#app');
+</script>
+</body>
+</html>
